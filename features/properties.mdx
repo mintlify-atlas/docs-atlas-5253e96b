@@ -1,0 +1,151 @@
+---
+title: "Edit server.properties, Ops, Whitelist, and Banned Players"
+sidebarTitle: "Properties"
+description: "ServerPilot provides a visual editor for server.properties and JSON management files: ops.json, whitelist.json, and banned-players.json."
+---
+
+The Properties tab is the fastest way to configure your Minecraft server without opening any files manually. It reads `server.properties` from your server folder and presents the most important settings as labelled form fields. The three Minecraft JSON management files — `ops.json`, `whitelist.json`, and `banned-players.json` — are loaded and displayed as editable text areas. When you click **Save**, all changes are written back to disk in one IPC round-trip.
+
+## How Properties Are Loaded
+
+Clicking into the Properties tab (or switching to a different server) triggers a `properties:get` IPC call. The Electron handler reads `server.properties` line by line:
+
+- Lines that are empty or start with `#` are treated as comments and skipped
+- Lines containing `=` are split into a key and value pair: `key.trim()` → `rest.join('=').trim()` (values can themselves contain `=`, for example in `motd`)
+- The full key/value map is returned as the `properties` object
+
+At the same time, the handler reads `ops.json`, `whitelist.json`, and `banned-players.json`. Each file is parsed as a JSON array. If a file does not exist, an empty array `[]` is returned for that key. The combined response shape is:
+
+```json
+{
+  "properties": {
+    "motd": "My ServerPilot Server",
+    "max-players": "20",
+    "gamemode": "survival",
+    "server-port": "25565"
+  },
+  "json": {
+    "ops.json": [],
+    "whitelist.json": [],
+    "banned-players.json": []
+  }
+}
+```
+
+## Visual Property Editor
+
+The Properties tab displays the ten most commonly changed settings as interactive form fields:
+
+| Property key | Label | Input type |
+|---|---|---|
+| `motd` | MOTD | Text |
+| `server-port` | Port | Number |
+| `max-players` | Max players | Number |
+| `online-mode` | Online mode | Boolean (Enabled / Disabled) |
+| `white-list` | Whitelist | Boolean (Enabled / Disabled) |
+| `pvp` | PVP | Boolean (Enabled / Disabled) |
+| `difficulty` | Difficulty | Text |
+| `gamemode` | Gamemode | Text |
+| `enable-command-block` | Command blocks | Boolean (Enabled / Disabled) |
+| `view-distance` | View distance | Number |
+
+Boolean properties render as a `<select>` with `Enabled` (`true`) and `Disabled` (`false`) options. Text and number properties render as standard inputs. All other keys that exist in your `server.properties` (outside this list) are preserved as-is when the file is saved — they are not shown in the UI but are not discarded either.
+
+## Sample server.properties
+
+```properties
+#Minecraft server properties
+#Edited by ServerPilot 2024-01-15T09:12:00.000Z
+motd=My ServerPilot Server
+max-players=20
+gamemode=survival
+difficulty=normal
+pvp=true
+online-mode=true
+white-list=false
+server-port=25565
+enable-command-block=false
+view-distance=10
+```
+
+<Note>
+  Most `server.properties` changes only take effect when the server is restarted. Properties like `motd`, `max-players`, `gamemode`, `difficulty`, `pvp`, `white-list`, and `server-port` all require a restart. Save your changes, then use the **Restart** button on the Dashboard to apply them.
+</Note>
+
+## How Properties Are Saved
+
+Clicking **Save** calls `properties:save` with the full properties map and the current JSON file contents. The handler writes a new `server.properties` by:
+
+1. Writing a `#Minecraft server properties` comment header
+2. Writing a `#Edited by ServerPilot <ISO timestamp>` line (e.g. `#Edited by ServerPilot 2024-01-15T09:12:00.000Z`)
+3. Writing each `key=value` pair, one per line, for every entry in the properties map
+
+```js
+const lines = ['#Minecraft server properties', `#Edited by ServerPilot ${new Date().toISOString()}`];
+for (const [key, value] of Object.entries(properties || {})) lines.push(`${key}=${value}`);
+await fs.promises.writeFile(resolveInside(root, 'server.properties'), lines.join('\n'), 'utf8');
+```
+
+## JSON Management Files
+
+Below the property editor are three raw JSON text areas — one for each management file:
+
+<Accordion title="ops.json — Server operators">
+  Contains an array of objects with each operator's `uuid`, `name`, `level`, and `bypassesPlayerLimit` fields. The operator level controls what commands the player can run. Add or remove entries here, then click **Save**.
+
+  ```json
+  [
+    {
+      "uuid": "abc123de-f456-7890-abcd-ef1234567890",
+      "name": "Steve",
+      "level": 4,
+      "bypassesPlayerLimit": false
+    }
+  ]
+  ```
+</Accordion>
+
+<Accordion title="whitelist.json — Allowed players">
+  Contains an array of objects with `uuid` and `name` for each whitelisted player. The whitelist is only enforced when `white-list=true` in `server.properties`.
+
+  ```json
+  [
+    { "uuid": "abc123de-f456-7890-abcd-ef1234567890", "name": "Steve" },
+    { "uuid": "def456gh-i789-0123-jklm-no4567890123", "name": "Alex" }
+  ]
+  ```
+</Accordion>
+
+<Accordion title="banned-players.json — Banned players">
+  Contains an array of ban records. Each entry includes `uuid`, `name`, `created`, `source`, `expires`, and `reason`.
+
+  ```json
+  [
+    {
+      "uuid": "abc123de-f456-7890-abcd-ef1234567890",
+      "name": "Griefer99",
+      "created": "2024-01-15 09:00:00 +0000",
+      "source": "Server",
+      "expires": "forever",
+      "reason": "Griefing"
+    }
+  ]
+  ```
+</Accordion>
+
+## Security
+
+The `properties:save` handler uses a strict whitelist when writing JSON files. Only `ops.json`, `whitelist.json`, and `banned-players.json` are accepted as keys in the `json` payload. Any other filename is silently skipped:
+
+```js
+if (!['ops.json', 'whitelist.json', 'banned-players.json'].includes(file)) continue;
+```
+
+All file paths are also resolved through `resolveInside` to prevent any path traversal.
+
+## IPC Reference
+
+| Channel | Direction | Payload | Returns |
+|---|---|---|---|
+| `properties:get` | Renderer → Main | `id` (server ID) | `{ properties: { key: value }, json: { 'ops.json': [...], ... } }` |
+| `properties:save` | Renderer → Main | `{ id, properties, json }` | `true` |

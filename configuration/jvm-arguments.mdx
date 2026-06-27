@@ -1,0 +1,131 @@
+---
+title: "JVM Arguments for Minecraft Servers in ServerPilot"
+sidebarTitle: "JVM Arguments"
+description: "Configure extra JVM flags for your Minecraft server in ServerPilot. Covers recommended GC flags, what ServerPilot strips automatically, and safe argument patterns."
+---
+
+The **JVM Arguments** field (`jvmArgs`) lets you pass extra flags to the Java Virtual Machine when ServerPilot launches your Minecraft server. These flags sit between the Java executable and the `-jar` option in the final command, giving you full control over garbage collection tuning, system properties, and other low-level JVM behaviour — without touching RAM allocation or JAR management, which ServerPilot handles separately.
+
+## The full launch command
+
+ServerPilot constructs the launch command in the following order:
+
+```bash
+java -Xms2G -Xmx4G [jvmArgs...] -jar paper.jar nogui
+```
+
+Breaking that down:
+
+| Segment | Source |
+|---|---|
+| `java` | `javaPath` (server) → `defaultJavaPath` (global) → `java` |
+| `-Xms2G` | `ramMin` (server) → `defaultRamMin` (global) → `2G` |
+| `-Xmx4G` | `ramMax` (server) → `defaultRamMax` (global) → `4G` |
+| `[jvmArgs...]` | `jvmArgs` field — sanitized before insertion |
+| `-jar paper.jar` | Built from `jarName`; managed by ServerPilot |
+| `nogui` | Always appended by ServerPilot |
+
+The `jvmArgs` field is the only segment you control directly. Everything else is derived from the dedicated fields in [Server Options](/configuration/server-options) and [Global Settings](/configuration/settings).
+
+## Argument parsing
+
+ServerPilot splits `jvmArgs` on whitespace. Quoted strings with internal spaces are preserved as single arguments:
+
+```text
+-Dfoo="bar baz"  →  one argument: -Dfoo=bar baz
+-XX:+UseG1GC -XX:MaxGCPauseMillis=200  →  two arguments
+```
+
+## Automatic sanitization
+
+Before inserting your `jvmArgs` into the command, ServerPilot scans each token and silently **removes** any argument that conflicts with fields it already manages. A warning message listing all removed arguments is printed to the server console so you always know what was stripped.
+
+The following are removed automatically:
+
+| Stripped pattern | Reason |
+|---|---|
+| `java` / `java.exe` | The executable is set via the **Java Path** field |
+| `-jar <anything>` | The JAR is set via the **JAR Name** field |
+| `nogui` / `gui` | Always appended (or omitted) by ServerPilot |
+| `*.jar` | Any bare JAR filename is managed by ServerPilot |
+| `-Xms...` | Set via the **Min RAM** field |
+| `-Xmx...` | Set via the **Max RAM** field |
+
+<Warning>
+  Do **not** include `-jar`, `-Xms`, `-Xmx`, or `nogui` in the `jvmArgs` field. These are managed exclusively by ServerPilot through their dedicated fields. If you include them, ServerPilot will strip them at launch and print a warning — they will not take effect, and your intended RAM values may be silently replaced by the global defaults.
+</Warning>
+
+### Example of what gets stripped
+
+If you enter the following into `jvmArgs`:
+
+```text
+java -Xmx8G -jar paper.jar nogui -XX:+UseG1GC
+```
+
+ServerPilot will strip `java`, `-Xmx8G`, `-jar paper.jar`, and `nogui`, leaving only:
+
+```text
+-XX:+UseG1GC
+```
+
+The console will show a warning similar to:
+
+```text
+Ignored JVM arguments that ServerPilot manages automatically: java -Xmx8G -jar paper.jar nogui
+```
+
+## Recommended flags
+
+<Tip>
+  For Paper servers, the following `jvmArgs` string is a solid starting point. It enables the G1 garbage collector with settings tuned for Minecraft's mixed-allocation workload:
+
+  ```text
+  -XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200
+  ```
+
+  These flags are safe to use on any modern JDK (Java 11+) and will not conflict with any ServerPilot-managed arguments.
+</Tip>
+
+Here is an overview of commonly used JVM flags and what they do:
+
+<ParamField path="-XX:+UseG1GC" type="flag">
+  Enables the **G1 (Garbage-First) garbage collector**. G1 is the default collector in Java 9+ and is the standard recommendation for Paper and most Minecraft server software. It balances throughput and pause times well for heap sizes in the 2–16 GB range.
+</ParamField>
+
+<ParamField path="-XX:+ParallelRefProcEnabled" type="flag">
+  Enables **parallel reference processing** during GC cycles. This reduces the time the JVM spends processing weak, soft, and phantom references in parallel with the rest of the collection, which can meaningfully reduce overall GC pause duration on servers with many loaded chunks or entities.
+</ParamField>
+
+<ParamField path="-XX:MaxGCPauseMillis=200" type="flag">
+  Sets the **target maximum GC pause time** to 200 milliseconds. G1 uses this as a soft goal when scheduling collections — it will try to keep individual stop-the-world pauses under this threshold. Lower values reduce lag spikes but may increase GC frequency; `200` is a good balance for Minecraft servers.
+</ParamField>
+
+<ParamField path="-XX:+UnlockExperimentalVMOptions -XX:+UseZGC" type="flag">
+  Enables the **ZGC (Z Garbage Collector)**, which is designed for very low latency with pause times consistently under 1 ms regardless of heap size. Requires **Java 17 or newer**. Best suited for large-memory servers (8 GB+) where eliminating lag spikes is the top priority. Must be used together: `UnlockExperimentalVMOptions` is required to enable `UseZGC` on some JDK builds.
+
+  <Note>
+    ZGC and G1GC are mutually exclusive — do not combine `-XX:+UseG1GC` and `-XX:+UseZGC` in the same `jvmArgs` string.
+  </Note>
+</ParamField>
+
+## Common mistakes
+
+**Pasting a full launch command into jvmArgs**
+
+A frequent mistake is copying a full launch command (e.g. from a server installation guide) and pasting the entire thing into `jvmArgs`:
+
+```text
+# Do NOT paste this into jvmArgs:
+java -Xmx4G -jar paper.jar nogui
+```
+
+ServerPilot will strip `java`, `-Xmx4G`, `-jar paper.jar`, and `nogui` from that string, leaving `jvmArgs` effectively empty. Your server will launch using the RAM values from the dedicated **Min RAM** / **Max RAM** fields instead, which may differ from what you intended.
+
+**Correct approach:** put only the extra flags in `jvmArgs` and set RAM via the dedicated fields:
+
+```text
+jvmArgs:  -XX:+UseG1GC -XX:+ParallelRefProcEnabled
+ramMin:   2G
+ramMax:   4G
+```

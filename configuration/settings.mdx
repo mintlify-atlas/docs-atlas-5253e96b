@@ -1,0 +1,94 @@
+---
+title: "Global App Settings in ServerPilot"
+sidebarTitle: "Settings"
+description: "Configure ServerPilot's global defaults: Java path, RAM allocation, Playit.gg executable, auto-start, auto-restart, and UI theme."
+---
+
+ServerPilot's **Settings** page controls application-wide defaults that apply to every server you manage. These values are used as fallbacks whenever a server does not have its own override configured. You can reach the Settings page from the left-hand navigation at any time — changes take effect immediately after saving.
+
+## Where settings are stored
+
+Settings are persisted to disk via [Electron-Store](https://github.com/sindresorhus/electron-store) at the following path on Windows:
+
+```text
+%AppData%\serverpilot-v2\serverpilot-v2.json
+```
+
+The file is written automatically every time you save; you do not need to restart ServerPilot for changes to take effect.
+
+<Note>
+  Per-server configuration always takes precedence over these global defaults. Global settings only apply when the equivalent per-server field is left blank or unset. See [Server Options](/configuration/server-options) for the full list of per-server overrides.
+</Note>
+
+## Saving settings
+
+Settings are sent to the main process over the `settings:update` IPC channel, which accepts a **partial** settings object and deep-merges it with the current saved state. Only the fields you include in the payload are updated — all other fields retain their existing values.
+
+```text
+IPC channel: settings:update
+Payload:     Partial<Settings>
+Returns:     Full merged Settings object
+```
+
+## Settings reference
+
+<ParamField path="defaultJavaPath" type="string" default="java">
+  The Java executable used to launch all servers. When set to the bare string `java`, ServerPilot resolves the binary from the system `PATH`. If Java is not in your `PATH`, set this to the full absolute path of the executable, for example:
+
+  ```text
+  C:\Program Files\Eclipse Adoptium\jdk-21.0.3.9-hotspot\bin\java.exe
+  ```
+
+  Individual servers can override this value in their own [Java Path](/configuration/server-options#javapath) field.
+</ParamField>
+
+<ParamField path="defaultRamMin" type="string" default="2G">
+  The default minimum Java heap size, passed to the JVM as `-Xms`. Accepts standard JVM memory notation: `512M`, `1G`, `2G`, etc. This value is used for any server whose **ramMin** field is blank.
+
+  <Note>
+    Do not include the `-Xms` flag itself here — enter only the size value, such as `2G`.
+  </Note>
+</ParamField>
+
+<ParamField path="defaultRamMax" type="string" default="4G">
+  The default maximum Java heap size, passed to the JVM as `-Xmx`. Accepts the same notation as `defaultRamMin`. This value is used for any server whose **ramMax** field is blank.
+</ParamField>
+
+<ParamField path="playitPath" type="string" default='""'>
+  The global path to the `playit.exe` tunnel executable. ServerPilot uses this path when starting Playit automatically alongside a server. If a server has its own `playitPath` configured, that value takes precedence over this global setting.
+
+  You can use the folder-picker button in the Settings UI to browse for the executable rather than typing the path manually.
+</ParamField>
+
+<ParamField path="autoStartPlayit" type="boolean" default="true">
+  When enabled, ServerPilot will automatically launch the Playit.gg process whenever a server starts — provided a valid `playitPath` is configured either globally or on the server itself. Individual servers can override this toggle in their own settings.
+
+  If `autoStartPlayit` is `true` but no valid Playit executable path is found, ServerPilot logs a warning to the server console and continues starting the Minecraft server normally.
+</ParamField>
+
+<ParamField path="autoRestartCrashed" type="boolean" default="false">
+  When enabled, ServerPilot will automatically attempt to restart a server **2.5 seconds** after it exits unexpectedly (non-zero exit code or unexpected signal). The restart is attempted once per crash event — if the restarted server crashes again, the counter resets and another restart will be scheduled.
+
+  <Warning>
+    Use this option with caution. If your server is crashing due to a configuration error or a corrupt world, auto-restart will keep relaunching it in a loop. Review the server console logs before enabling this in production.
+  </Warning>
+</ParamField>
+
+<ParamField path="theme" type="string" default="neon">
+  The UI color theme for the ServerPilot application. Available options:
+
+  | Value  | Label                  | Description                          |
+  |--------|------------------------|--------------------------------------|
+  | `neon` | Neon green gamer       | Dark glassmorphism with neon accents |
+  | `dark` | Dark mode              | Neutral dark theme                   |
+
+  The theme is applied globally across all pages immediately after saving.
+</ParamField>
+
+<ParamField path="hasCompletedOnboarding" type="boolean" default="false">
+  Tracks whether the first-run Onboarding Wizard has been completed. When `false`, the wizard is shown on the next application launch. ServerPilot sets this to `true` automatically when you finish or skip onboarding.
+
+  <Info>
+    You do not typically need to edit this field manually. If you want to re-run the onboarding flow, set this to `false` in the settings file at `%AppData%\serverpilot-v2\serverpilot-v2.json` and relaunch the app.
+  </Info>
+</ParamField>

@@ -1,0 +1,109 @@
+---
+title: "Browse and Edit Server Files with Monaco Editor"
+sidebarTitle: "File Manager"
+description: "ServerPilot's built-in file manager lets you browse your Minecraft server folder and edit any text file using the Monaco Editor — the same editor that powers VS Code."
+---
+
+The File Manager tab lets you browse your entire Minecraft server folder directly inside ServerPilot, without needing to open Windows Explorer. Any supported text file can be opened in the built-in Monaco Editor — the same editor engine that powers Visual Studio Code — giving you syntax highlighting, word wrap, and a familiar editing experience right alongside your server controls.
+
+## Browsing the Server Folder
+
+When you open the File Manager, ServerPilot calls `files:list` with an empty `relativePath` to list the root of the server folder. The directory listing is sorted **folders first, then files alphabetically** — the same ordering used by most file explorers.
+
+Each entry in the listing shows:
+
+- **Name** — the file or folder name
+- **Type icon** — a folder icon (neon green) for directories, a file icon (grey) for files
+- **Size** — the file size for non-directory entries, e.g. `48 KB`
+- **Last modified** — derived from the `updatedAt` (`mtimeMs`) timestamp of the file
+
+Click a folder to navigate into it. The current path is shown as a clickable breadcrumb at the top of the sidebar (e.g. `/plugins/EssentialsX`). Click any segment of the breadcrumb to navigate back up. Navigation is always confined within the server folder — you cannot browse above the server root.
+
+## Supported File Types for Editing
+
+<Note>
+  Only files with the following extensions can be opened in the editor. Any other file type will return an error when you try to open it.
+  
+  `.yml` · `.yaml` · `.json` · `.txt` · `.properties` · `.log` · `.md` · `.cfg` · `.conf` · `.toml`
+</Note>
+
+When a file is opened, the Monaco Editor automatically selects a syntax highlighting language based on the file extension. For example, `.yml` and `.yaml` files get YAML syntax highlighting, `.json` files get JSON, `.properties` and `.conf` files get a plain-text fallback, and `.toml` files get TOML.
+
+## Monaco Editor
+
+The editor is rendered by `@monaco-editor/react` using the `vs-dark` theme to match ServerPilot's dark UI. The editor is configured with:
+
+- `minimap: { enabled: false }` — the minimap is hidden to preserve horizontal space
+- `fontSize: 14`
+- `wordWrap: 'on'` — long lines wrap instead of requiring horizontal scrolling
+
+When you are done editing, click **Save** in the editor toolbar to write the file back to disk via `files:write`.
+
+<Warning>
+  Files larger than **4 MB** cannot be opened in the editor. Both the `files:read` handler (which checks `stat.size`) and the `files:write` handler (which checks `Buffer.byteLength` of the content) enforce this limit. Attempting to open or save a file over 4 MB will return an error. For large log files, use an external text editor.
+</Warning>
+
+## File Operations
+
+All file operations go through Electron IPC handlers registered in `fileManager.js`. Every path is resolved and validated before any filesystem action is taken.
+
+<Steps>
+  <Step title="Create a file">
+    Click the **New File** button (file icon) in the sidebar toolbar. Enter a name when prompted. ServerPilot calls `files:create` with `type: 'file'`, which creates an empty file using `fs.promises.writeFile` with the `wx` flag (fails if the file already exists).
+  </Step>
+  <Step title="Create a folder">
+    Click the **New Folder** button (folder-plus icon) in the toolbar. Enter a name when prompted. ServerPilot calls `files:create` with `type: 'folder'`, which runs `fs.promises.mkdir` with `recursive: true`.
+  </Step>
+  <Step title="Rename a file or folder">
+    Renaming is available via the `files:rename` IPC handler. The new name must not contain `/` or `\` — slashes in the name are rejected to prevent path injection. The rename is performed with `fs.promises.rename`.
+  </Step>
+  <Step title="Delete a file or folder">
+    Click the trash icon that appears when you hover over an entry. Confirm the prompt, and ServerPilot calls `files:delete`, which runs `fs.promises.rm` with `{ recursive: true, force: true }`. This deletes non-empty folders as well as individual files.
+  </Step>
+  <Step title="Open and read a file">
+    Click any file with a supported extension. ServerPilot calls `files:read`, which reads the file as UTF-8 and returns `{ content, language }`. The `language` field is derived from the file extension (without the dot) for Monaco to use as the syntax mode.
+  </Step>
+  <Step title="Save a file">
+    After editing in Monaco, click **Save**. ServerPilot calls `files:write` with the current editor content. The content must be under 4 MB or the write will be rejected.
+  </Step>
+</Steps>
+
+## Security Model
+
+The File Manager enforces a strict server-folder confinement policy in the `resolveInside` function:
+
+```js
+function resolveInside(root, relativePath = '') {
+  const base = path.resolve(root);
+  const target = path.resolve(base, relativePath || '.');
+  if (target !== base && !target.startsWith(base + path.sep))
+    throw new Error('Path escapes the server folder');
+  // ...
+}
+```
+
+In addition to the path traversal check, the following Windows system paths are explicitly blocked regardless of how the path is constructed:
+
+| Blocked path |
+|---|
+| `C:\Windows` |
+| `C:\Program Files` |
+| `C:\Program Files (x86)` |
+| `C:\Users\Default` |
+
+Any attempt to read, write, create, delete, or rename a file outside the server folder — including `../` traversal attempts — results in a thrown error and no filesystem operation is performed.
+
+<Note>
+  The `backups/` subfolder appears in the file listing, but managing backup ZIP files is handled by the dedicated [Backups tab](/features/backups). You can view the folder contents here, but use the Backups tab to create and restore backups.
+</Note>
+
+## IPC Reference
+
+| Channel | Direction | Payload | Returns |
+|---|---|---|---|
+| `files:list` | Renderer → Main | `{ id, relativePath }` | Array of `{ name, relativePath, isDirectory, size, updatedAt }` |
+| `files:read` | Renderer → Main | `{ id, relativePath }` | `{ content, language }` |
+| `files:write` | Renderer → Main | `{ id, relativePath, content }` | `true` |
+| `files:create` | Renderer → Main | `{ id, relativePath, type }` | `true` |
+| `files:delete` | Renderer → Main | `{ id, relativePath }` | `true` |
+| `files:rename` | Renderer → Main | `{ id, relativePath, nextName }` | `true` |

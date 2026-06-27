@@ -1,0 +1,81 @@
+---
+title: "Install Java for Minecraft Server Hosting"
+sidebarTitle: "Java Setup"
+description: "Install Java 17 or newer on Windows before running Minecraft servers with ServerPilot. Covers Eclipse Temurin, Oracle Java, and manual path configuration."
+---
+
+Modern Minecraft servers require Java 17 or newer. ServerPilot launches your server by calling the `java` executable directly, so Java must be installed on your machine before you can start any server. This page walks you through choosing a distribution, installing it, verifying the installation, and pointing ServerPilot to your Java binary if needed.
+
+## Why Java 17 or Newer?
+
+Minecraft 1.17 and later — along with popular server platforms like Paper — are compiled for Java 17+. Attempting to start a modern server with Java 8 or 11 will cause an immediate crash. Java 21 is currently the most widely used LTS release and is the recommended choice for new installations.
+
+## Choosing a Java Distribution
+
+<Tip>
+  Eclipse Temurin is the recommended distribution for Minecraft server hosting. It is fully open-source, carries no commercial license restrictions, and ships long-term support (LTS) builds that receive regular security patches. You can use it freely for any purpose without registering or accepting Oracle's terms.
+</Tip>
+
+<CardGroup cols={2}>
+  <Card title="Eclipse Temurin (Recommended)" icon="mug-hot" href="https://adoptium.net/">
+    Open-source, free, no license restrictions. Maintained by the Eclipse Adoptium working group. Includes Windows installers that automatically configure your `PATH`.
+  </Card>
+  <Card title="Oracle Java" icon="java" href="https://www.oracle.com/java/technologies/downloads/">
+    The official Oracle JDK. Free for personal and development use. Provides Windows installers and auto-PATH setup. Review Oracle's license terms if using in a commercial context.
+  </Card>
+</CardGroup>
+
+## Installing Eclipse Temurin
+
+<Steps>
+  <Step title="Download the installer">
+    Go to [https://adoptium.net/](https://adoptium.net/) and click **Latest LTS release**. The site will automatically recommend the correct Windows x64 `.msi` installer. Download it.
+  </Step>
+  <Step title="Run the installer">
+    Double-click the downloaded `.msi` file. When prompted, keep the default options — in particular, leave **Add to PATH** and **Set JAVA_HOME** checked. These settings let `java` be found from any Command Prompt window.
+  </Step>
+  <Step title="Verify the installation">
+    Open **Command Prompt** (`Win + R` → type `cmd` → press Enter) and run:
+
+    ```cmd
+    java -version
+    ```
+
+    You should see output similar to:
+
+    ```
+    openjdk version "21.0.x" 2024-xx-xx
+    OpenJDK Runtime Environment Temurin-21.x.x+xx
+    OpenJDK 64-Bit Server VM Temurin-21.x.x+xx (build ...)
+    ```
+
+    If you see this, Java is installed correctly and ServerPilot can find it automatically using the default `java` executable name.
+  </Step>
+</Steps>
+
+## What If `java` Is Not Found?
+
+If Command Prompt says `'java' is not recognized as an internal or external command`, the Java binary was not added to your system `PATH`. This can happen if you unchecked the PATH option during installation, or if you installed Java to a non-standard location.
+
+You have two options:
+
+**Option 1 — Repair or reinstall with PATH enabled.**
+Re-run the Temurin installer, select **Modify**, and ensure the **Add to PATH** feature is checked.
+
+**Option 2 — Set the Java path manually in ServerPilot.**
+Find the full path to your `java.exe` on disk. It typically looks like:
+
+```
+C:\Program Files\Eclipse Adoptium\jdk-21.0.x.x-hotspot\bin\java.exe
+```
+
+Then configure ServerPilot to use that path directly (see below).
+
+<Note>
+  ServerPilot defaults to calling `java` (i.e., it expects Java to be on the system `PATH`). You can override this in two places:
+
+  - **Global default** — Open **Settings** and set **Default Java Path** to the full path of your `java.exe`. Every new server you add will inherit this value.
+  - **Per-server override** — In the Server Modal (Add or Edit Server), set the **Java executable** field for that specific server. This overrides the global default for that server only.
+
+  Setting the path per-server is useful when you run multiple servers on different Java versions simultaneously — for example, a 1.20 Paper server on Java 21 and a legacy 1.12 Forge server on Java 8.
+</Note>

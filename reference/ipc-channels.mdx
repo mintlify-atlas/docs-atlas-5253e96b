@@ -1,0 +1,579 @@
+---
+title: "IPC Channels Reference — ServerPilot Electron Bridge"
+sidebarTitle: "IPC Channels"
+description: "Complete reference for all Electron IPC invoke channels and event channels exposed by ServerPilot's preload bridge. Includes payloads and return values."
+---
+
+ServerPilot's renderer process (the React UI) never has direct access to the filesystem or Node.js APIs. Instead, it communicates with the Electron main process through a tightly restricted IPC bridge that is injected into the renderer as `window.serverPilot` via Electron's `contextBridge`. The bridge exposes exactly two methods: `invoke(channel, payload)` for request-response interactions (returns a `Promise`), and `on(channel, callback)` for subscribing to server-pushed events (returns an unsubscribe function). Any channel not in the explicit allow-list throws immediately — nothing is leaked by accident.
+
+```js
+// Invoke a channel (returns a Promise)
+window.serverPilot.invoke('server:start', serverId)
+  .then(state => console.log(state));
+
+// Listen for push events (returns unsubscribe function)
+const off = window.serverPilot.on('server:log', (data) => {
+  console.log(data.message);
+});
+// Later: off(); to unsubscribe
+```
+
+The React layer wraps these calls in `src/services/api.js` so application code imports `api.invoke` and `api.on` instead of referencing `window.serverPilot` directly.
+
+---
+
+## App & Settings
+
+### `app:data:get`
+
+Returns the full application state on startup. Call this once when the UI mounts to hydrate the server list and global settings.
+
+**Payload:** none
+
+<ResponseField name="servers" type="Server[]" required>
+  Array of all saved server configurations.
+</ResponseField>
+
+<ResponseField name="settings" type="Settings" required>
+  Merged settings object (user overrides merged on top of defaults).
+</ResponseField>
+
+---
+
+### `settings:update`
+
+Merges a partial `Settings` object into the persisted settings store and returns the full merged result.
+
+<ParamField body="settings" type="Partial<Settings>" required>
+  Any subset of the Settings object. Only provided keys are overwritten.
+</ParamField>
+
+<ResponseField name="(return)" type="Settings">
+  The complete, merged Settings object after the update.
+</ResponseField>
+
+---
+
+### `dialog:select-folder`
+
+Opens the native Windows folder-picker dialog and returns the selected path, or `null` if the user cancels.
+
+**Payload:** none
+
+<ResponseField name="(return)" type="string | null">
+  Absolute path to the selected folder, or `null` if cancelled.
+</ResponseField>
+
+---
+
+### `dialog:select-file`
+
+Opens the native Windows file-picker dialog with optional file-type filters.
+
+<ParamField body="filters" type="Array<{ name: string, extensions: string[] }>">
+  Optional array of file type filters (e.g. `[{ name: 'Java Executables', extensions: ['exe'] }]`). Defaults to executables and JARs.
+</ParamField>
+
+<ResponseField name="(return)" type="string | null">
+  Absolute path to the selected file, or `null` if cancelled.
+</ResponseField>
+
+---
+
+## Server Management
+
+### `server:add`
+
+Persists a new server configuration. The main process assigns a UUID `id` and merges defaults from the current global settings (Java path, RAM, Playit auto-start).
+
+<ParamField body="server" type="Partial<Server>" required>
+  Server configuration object. `id`, `createdAt`, and `updatedAt` are generated automatically.
+</ParamField>
+
+<ResponseField name="(return)" type="Server">
+  The newly created server object including its generated `id`.
+</ResponseField>
+
+---
+
+### `server:update`
+
+Updates an existing server configuration. The `id` field is required to locate the record.
+
+<ParamField body="server" type="Server" required>
+  Full or partial server object. Must include `id`.
+</ParamField>
+
+<ResponseField name="(return)" type="Server">
+  The updated server object.
+</ResponseField>
+
+---
+
+### `server:remove`
+
+Removes a server configuration from the store. Does **not** delete files on disk.
+
+<ParamField body="id" type="string" required>
+  The UUID of the server to remove.
+</ParamField>
+
+<ResponseField name="(return)" type="Server[]">
+  The remaining server array after removal.
+</ResponseField>
+
+---
+
+### `server:detect`
+
+Scans a folder for Minecraft server JARs and configuration files. Prefers Paper over Fabric over Forge over Vanilla when multiple JARs are found.
+
+<ParamField body="folderPath" type="string" required>
+  Absolute path to the folder to inspect.
+</ParamField>
+
+<ResponseField name="jarName" type="string">
+  Filename of the detected JAR (e.g. `paper-1.21.4-191.jar`), or empty string if none found.
+</ResponseField>
+
+<ResponseField name="serverType" type="'Paper' | 'Fabric' | 'Forge' | 'Vanilla' | 'Unknown'">
+  Inferred server type based on the JAR filename.
+</ResponseField>
+
+<ResponseField name="hasProperties" type="boolean">
+  Whether `server.properties` exists in the folder.
+</ResponseField>
+
+<ResponseField name="hasOps" type="boolean">
+  Whether `ops.json` exists in the folder.
+</ResponseField>
+
+<ResponseField name="hasWhitelist" type="boolean">
+  Whether `whitelist.json` exists in the folder.
+</ResponseField>
+
+---
+
+### `server:start`
+
+Launches the Minecraft server process for the given server. Builds the Java command from the server's `javaPath`, `ramMin`, `ramMax`, `jarName`, and `jvmArgs` — stripping any arguments that ServerPilot manages itself. If `autoStartPlayit` is enabled and a valid Playit executable path is configured, Playit is launched simultaneously.
+
+<ParamField body="id" type="string" required>
+  The UUID of the server to start.
+</ParamField>
+
+<ResponseField name="serverId" type="string">UUID of the server.</ResponseField>
+<ResponseField name="status" type="'STARTING' | 'ONLINE' | 'STOPPING' | 'OFFLINE' | 'CRASHED'">
+  Current lifecycle status.
+</ResponseField>
+<ResponseField name="pid" type="number | null">OS process ID of the Java process.</ResponseField>
+<ResponseField name="playitPid" type="number | null">OS process ID of the Playit process, if running.</ResponseField>
+<ResponseField name="startedAt" type="number | null">Unix timestamp (ms) of when the server was started.</ResponseField>
+<ResponseField name="playitStatus" type="string">Current Playit status string (e.g. `PLAYIT ONLINE`, `PLAYIT STOPPED`).</ResponseField>
+<ResponseField name="crashReason" type="string">Non-empty if the server is in the `CRASHED` state.</ResponseField>
+<ResponseField name="lastLogs" type="string[]">Up to 30 most recent cleaned log lines.</ResponseField>
+
+---
+
+### `server:stop`
+
+Sends the `stop` command to the server's stdin and starts a 15-second force-kill timer. If the process does not exit within 15 seconds, it is terminated via `taskkill.exe /T /F`.
+
+<ParamField body="id" type="string" required>
+  The UUID of the server to stop.
+</ParamField>
+
+<ResponseField name="(return)" type="ServerState">
+  Public server state at the moment the stop was requested (same shape as `server:start`).
+</ResponseField>
+
+---
+
+### `server:restart`
+
+Performs a graceful stop (waits for the process to exit) and then starts the server again. Returns the public state after the new start.
+
+<ParamField body="id" type="string" required>
+  The UUID of the server to restart.
+</ParamField>
+
+<ResponseField name="(return)" type="ServerState">
+  Public server state after the restart (same shape as `server:start`).
+</ResponseField>
+
+---
+
+### `server:kill`
+
+Force-kills the server process after a 3-second grace period instead of the normal 15 seconds. Use for unresponsive servers.
+
+<ParamField body="id" type="string" required>
+  The UUID of the server to force-kill.
+</ParamField>
+
+<ResponseField name="(return)" type="ServerState">
+  Public server state (same shape as `server:start`).
+</ResponseField>
+
+---
+
+### `server:command`
+
+Writes a command string to the server's stdin (appends `\n`). Also emits a `server:log` event with `level: 'command'` so the console UI shows it in-line.
+
+<ParamField body="id" type="string" required>
+  The UUID of the target server.
+</ParamField>
+
+<ParamField body="command" type="string" required>
+  The command to send, e.g. `op Steve` or `say Hello world`.
+</ParamField>
+
+<ResponseField name="(return)" type="boolean">
+  Always `true` on success. Throws if the server is not running.
+</ResponseField>
+
+---
+
+### `server:open-folder`
+
+Opens the server's folder in Windows Explorer using `shell.openPath`.
+
+<ParamField body="id" type="string" required>
+  The UUID of the server.
+</ParamField>
+
+<ResponseField name="(return)" type="boolean">Always `true`.</ResponseField>
+
+---
+
+### `server:open-terminal`
+
+Opens a `cmd.exe` window pre-navigated to the server's folder.
+
+<ParamField body="id" type="string" required>
+  The UUID of the server.
+</ParamField>
+
+<ResponseField name="(return)" type="boolean">Always `true`.</ResponseField>
+
+---
+
+## Metrics
+
+### `metrics:get`
+
+Polls `pidusage` for the current CPU and memory consumption of the server's Java process, appends a data point to the in-memory history (capped at 40 points), and **also** emits a `server:metrics` push event so the dashboard chart updates automatically. Returns `OFFLINE` defaults if the server is not running.
+
+<ParamField body="id" type="string" required>
+  The UUID of the server to measure.
+</ParamField>
+
+<ResponseField name="status" type="string">Current server status.</ResponseField>
+<ResponseField name="cpu" type="number">CPU usage as a percentage (1 decimal place).</ResponseField>
+<ResponseField name="memory" type="number">Process RSS memory in MB.</ResponseField>
+<ResponseField name="systemMemory" type="number">Total system used memory in MB.</ResponseField>
+<ResponseField name="uptime" type="number">Seconds elapsed since the server was started.</ResponseField>
+<ResponseField name="pid" type="number | null">Java process ID.</ResponseField>
+<ResponseField name="playitPid" type="number | null">Playit process ID, if running.</ResponseField>
+<ResponseField name="playitStatus" type="string">Current Playit status string.</ResponseField>
+<ResponseField name="tps" type="number">Reported TPS (currently fixed at `20` — future plugin integration).</ResponseField>
+<ResponseField name="players" type="number">Number of currently online players.</ResponseField>
+<ResponseField name="history" type="Array<{ time: string, cpu: number, memory: number }>">
+  Up to 40 historical data points for the sparkline chart.
+</ResponseField>
+<ResponseField name="crashReason" type="string">Non-empty when the server has crashed.</ResponseField>
+<ResponseField name="lastLogs" type="string[]">Up to 30 most recent log lines.</ResponseField>
+
+---
+
+## File Manager
+
+### `files:list`
+
+Lists the contents of a directory inside the server folder, sorted directories-first then alphabetically by name.
+
+<ParamField body="id" type="string" required>
+  Server UUID.
+</ParamField>
+
+<ParamField body="relativePath" type="string">
+  Path relative to the server's root folder. Omit or pass empty string for the root.
+</ParamField>
+
+<ResponseField name="(return)" type="FileEntry[]">
+  Array of entries: `{ name, relativePath, isDirectory, size, updatedAt }` — directories appear before files.
+</ResponseField>
+
+---
+
+### `files:read`
+
+Reads a text file inside the server folder and returns its content along with a language hint for Monaco Editor. Supported extensions: `.yml`, `.yaml`, `.json`, `.txt`, `.properties`, `.log`, `.md`, `.cfg`, `.conf`, `.toml`. Files larger than 4 MB are rejected.
+
+<ParamField body="id" type="string" required>
+  Server UUID.
+</ParamField>
+
+<ParamField body="relativePath" type="string" required>
+  Path to the file relative to the server root.
+</ParamField>
+
+<ResponseField name="content" type="string">UTF-8 file content.</ResponseField>
+<ResponseField name="language" type="string">
+  Language identifier for Monaco (e.g. `json`, `yaml`, `properties`).
+</ResponseField>
+
+---
+
+### `files:write`
+
+Writes a UTF-8 string to an existing file inside the server folder. Payloads exceeding 4 MB are rejected.
+
+<ParamField body="id" type="string" required>
+  Server UUID.
+</ParamField>
+
+<ParamField body="relativePath" type="string" required>
+  Path to the file relative to the server root.
+</ParamField>
+
+<ParamField body="content" type="string" required>
+  Full UTF-8 file content to write.
+</ParamField>
+
+<ResponseField name="(return)" type="boolean">Always `true` on success.</ResponseField>
+
+---
+
+### `files:create`
+
+Creates a new empty file or a new directory (including intermediate directories) inside the server folder.
+
+<ParamField body="id" type="string" required>
+  Server UUID.
+</ParamField>
+
+<ParamField body="relativePath" type="string" required>
+  Desired path relative to the server root.
+</ParamField>
+
+<ParamField body="type" type="'file' | 'folder'" required>
+  Whether to create a file or a directory.
+</ParamField>
+
+<ResponseField name="(return)" type="boolean">Always `true` on success.</ResponseField>
+
+---
+
+### `files:delete`
+
+Recursively deletes a file or directory inside the server folder.
+
+<ParamField body="id" type="string" required>
+  Server UUID.
+</ParamField>
+
+<ParamField body="relativePath" type="string" required>
+  Path relative to the server root.
+</ParamField>
+
+<ResponseField name="(return)" type="boolean">Always `true` on success.</ResponseField>
+
+---
+
+### `files:rename`
+
+Renames a file or directory. The new name must not contain `/` or `\` — only a simple filename is accepted.
+
+<ParamField body="id" type="string" required>
+  Server UUID.
+</ParamField>
+
+<ParamField body="relativePath" type="string" required>
+  Current path relative to the server root.
+</ParamField>
+
+<ParamField body="nextName" type="string" required>
+  New filename (no path separators allowed).
+</ParamField>
+
+<ResponseField name="(return)" type="boolean">Always `true` on success.</ResponseField>
+
+---
+
+## Properties
+
+### `properties:get`
+
+Reads `server.properties` (parsed into a key-value map) and the three standard JSON files (`ops.json`, `whitelist.json`, `banned-players.json`) from the server folder. Returns empty defaults for any file that does not exist yet.
+
+<ParamField body="id" type="string" required>
+  Server UUID.
+</ParamField>
+
+<ResponseField name="properties" type="Record<string, string>">
+  All entries from `server.properties` as a flat key-value object (comments and blank lines stripped).
+</ResponseField>
+
+<ResponseField name="json" type="object">
+  Object with keys `ops.json`, `whitelist.json`, and `banned-players.json`, each containing the parsed array (or `[]` if the file is missing or malformed).
+</ResponseField>
+
+---
+
+### `properties:save`
+
+Writes `server.properties` and up to three JSON files back to disk. A `#Edited by ServerPilot <timestamp>` comment is prepended to `server.properties`. Only `ops.json`, `whitelist.json`, and `banned-players.json` are accepted as JSON targets — any other key in the `json` object is silently skipped.
+
+<ParamField body="id" type="string" required>
+  Server UUID.
+</ParamField>
+
+<ParamField body="properties" type="Record<string, string>" required>
+  Key-value map to write as `server.properties`.
+</ParamField>
+
+<ParamField body="json" type="object" required>
+  Object with keys matching the allowed filenames and their corresponding arrays as values.
+</ParamField>
+
+<ResponseField name="(return)" type="boolean">Always `true` on success.</ResponseField>
+
+---
+
+## Backups
+
+### `backups:list`
+
+Returns all `.zip` files from the server's `backups/` subfolder, sorted newest-first by creation time.
+
+<ParamField body="id" type="string" required>
+  Server UUID.
+</ParamField>
+
+<ResponseField name="(return)" type="BackupEntry[]">
+  Array of `{ name, fullPath, size, createdAt }` where `createdAt` is a Unix timestamp in milliseconds.
+</ResponseField>
+
+---
+
+### `backups:create`
+
+ZIPs the entire server folder (excluding the `backups/` subfolder itself) into a timestamped archive at `<serverFolder>/backups/<serverName>-<timestamp>.zip` using maximum compression. Emits a desktop notification when complete.
+
+<ParamField body="id" type="string" required>
+  Server UUID.
+</ParamField>
+
+<ResponseField name="fullPath" type="string">Absolute path to the created ZIP file.</ResponseField>
+<ResponseField name="name" type="string">Filename of the ZIP (e.g. `MyServer-2025-01-15T10-30-00-000Z.zip`).</ResponseField>
+
+---
+
+### `backups:restore`
+
+Extracts a ZIP backup over the server folder. The `backupPath` must be inside the server's own `backups/` subdirectory — paths outside this location are rejected.
+
+<ParamField body="id" type="string" required>
+  Server UUID.
+</ParamField>
+
+<ParamField body="backupPath" type="string" required>
+  Absolute path to the `.zip` file to restore. Must reside in `<serverFolder>/backups/`.
+</ParamField>
+
+<ResponseField name="(return)" type="boolean">Always `true` on success.</ResponseField>
+
+---
+
+## Push Event Channels
+
+Subscribe to these channels with `window.serverPilot.on(channel, callback)`. Each call returns an unsubscribe function — call it when the component unmounts to prevent memory leaks.
+
+```js
+const off = window.serverPilot.on('server:log', (data) => {
+  appendToConsole(data);
+});
+
+// In cleanup / useEffect return:
+off();
+```
+
+### `server:log`
+
+Emitted for every line of output from the Minecraft process (stdout/stderr) and the Playit process. Also emitted when a command is sent via `server:command`.
+
+<ResponseField name="serverId" type="string">UUID of the originating server.</ResponseField>
+<ResponseField name="level" type="'info' | 'error' | 'warn' | 'command'">
+  Severity / type of the log line.
+</ResponseField>
+<ResponseField name="source" type="'server' | 'playit'">
+  Whether the line came from the Minecraft process or the Playit process.
+</ResponseField>
+<ResponseField name="message" type="string">
+  Cleaned log text (ANSI escape codes and non-printable characters stripped).
+</ResponseField>
+<ResponseField name="at" type="string">ISO 8601 timestamp of when the line was received.</ResponseField>
+
+---
+
+### `server:status`
+
+Emitted whenever the server's lifecycle status changes (e.g. `STARTING` → `ONLINE`, `ONLINE` → `STOPPING`, etc.).
+
+<ResponseField name="serverId" type="string">UUID of the server.</ResponseField>
+<ResponseField name="status" type="'STARTING' | 'ONLINE' | 'STOPPING' | 'OFFLINE' | 'CRASHED'">New status.</ResponseField>
+<ResponseField name="pid" type="number | null">Java process ID.</ResponseField>
+<ResponseField name="playitPid" type="number | null">Playit process ID.</ResponseField>
+<ResponseField name="startedAt" type="number | null">Unix timestamp (ms) of server start.</ResponseField>
+<ResponseField name="playitStatus" type="string">Current Playit status string.</ResponseField>
+<ResponseField name="crashReason" type="string">Non-empty when status is `CRASHED`.</ResponseField>
+<ResponseField name="lastLogs" type="string[]">Up to 30 most recent log lines.</ResponseField>
+
+---
+
+### `server:metrics`
+
+Emitted automatically by `metrics:get` every time the dashboard polls for metrics. Same payload as the `metrics:get` return value plus `serverId`.
+
+<ResponseField name="serverId" type="string">UUID of the server.</ResponseField>
+<ResponseField name="status" type="string">Current status.</ResponseField>
+<ResponseField name="cpu" type="number">CPU % (1 decimal place).</ResponseField>
+<ResponseField name="memory" type="number">RSS memory in MB.</ResponseField>
+<ResponseField name="systemMemory" type="number">Total system used memory in MB.</ResponseField>
+<ResponseField name="uptime" type="number">Seconds since start.</ResponseField>
+<ResponseField name="pid" type="number | null">Java process ID.</ResponseField>
+<ResponseField name="playitPid" type="number | null">Playit process ID.</ResponseField>
+<ResponseField name="playitStatus" type="string">Current Playit status string.</ResponseField>
+<ResponseField name="tps" type="number">Reported TPS.</ResponseField>
+<ResponseField name="players" type="number">Online player count.</ResponseField>
+<ResponseField name="history" type="Array<{ time: string, cpu: number, memory: number }>">
+  Up to 40 historical data points.
+</ResponseField>
+<ResponseField name="crashReason" type="string">Non-empty if crashed.</ResponseField>
+<ResponseField name="lastLogs" type="string[]">Up to 30 recent log lines.</ResponseField>
+
+---
+
+### `server:players`
+
+Emitted whenever the online player list changes (join, leave, kick, chat, etc.). The `online` array is sorted alphabetically by username. `activity` contains the 150 most recent events in reverse-chronological order.
+
+<ResponseField name="serverId" type="string">UUID of the server.</ResponseField>
+<ResponseField name="online" type="Player[]">
+  Array of currently online players, each with `username`, `joinTime`, `status`, `ping`, `lastActivity`, `lastActivityText`, `dimension`, and `uuid`.
+</ResponseField>
+<ResponseField name="onlineCount" type="number">Length of the `online` array.</ResponseField>
+<ResponseField name="activity" type="Activity[]">
+  Up to 150 recent player activity events (newest first). Each event has `id`, `at`, `type`, `username`, and `text`.
+</ResponseField>
+
+---
+
+### `toast`
+
+Emitted for every desktop notification shown by `Notification.show()`. The UI can mirror these as in-app toast messages.
+
+<ResponseField name="title" type="string">Notification title (e.g. `Server online`).</ResponseField>
+<ResponseField name="body" type="string">Notification body (e.g. `MyServer finished startup.`).</ResponseField>

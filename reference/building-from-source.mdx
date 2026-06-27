@@ -1,0 +1,177 @@
+---
+title: "Build ServerPilot from Source on Windows"
+sidebarTitle: "Building from Source"
+description: "Clone the ServerPilot repository, install dependencies, run the development app, and compile Windows installer and portable EXE builds using Electron Builder."
+---
+
+ServerPilot is a standard Electron + React application with a Vite build pipeline. The entire source is available on GitHub and can be compiled to distributable Windows executables in a few commands. This page walks through the prerequisites, the development workflow, and producing release builds.
+
+## Prerequisites
+
+- **Node.js 18 or newer** — download from [nodejs.org](https://nodejs.org/)
+- **Git** — download from [git-scm.com](https://git-scm.com/)
+- **Windows 10 or 11** — Electron Builder's `.exe` targets require a Windows host
+
+<Note>
+  Electron Builder can produce `.exe` output on Linux or macOS only when Wine is installed, and native module compilation may still fail. A Windows host is strongly recommended for release builds.
+</Note>
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Desktop shell | Electron 42 |
+| UI framework | React 18 with Vite 6 |
+| Styling | Tailwind CSS 3 (PostCSS via `postcss.config.cjs`) |
+| Code editor | Monaco Editor (`@monaco-editor/react`) |
+| Charts | Recharts |
+| Process metrics | pidusage |
+| Persistence | electron-store |
+| Packaging | Electron Builder 26 |
+
+---
+
+## Build Steps
+
+<Steps>
+
+<Step title="Clone the repository">
+
+```bash
+git clone https://github.com/GKExpo/ServerPilot.git
+cd ServerPilot
+```
+
+</Step>
+
+<Step title="Install dependencies">
+
+```bash
+npm install
+```
+
+This installs both runtime dependencies (React, Electron, archiver, etc.) and dev dependencies (Vite, Tailwind, Electron Builder, concurrently).
+
+</Step>
+
+<Step title="Start the development app">
+
+```bash
+npm run dev
+```
+
+This command runs two processes in parallel via `concurrently`:
+
+1. **Vite dev server** — starts at `http://127.0.0.1:5173` and serves the React renderer with hot module replacement.
+2. **Electron** — waits for the Vite server to be ready (via `wait-on`), then launches with `VITE_DEV_SERVER_URL=http://127.0.0.1:5173` set so `electron/main.js` loads the dev server instead of the built renderer.
+
+The app window opens automatically. Changes to files in `src/` hot-reload instantly. Changes to files in `electron/` require stopping the process (`Ctrl+C`) and running `npm run dev` again.
+
+</Step>
+
+<Step title="Build the renderer only">
+
+```bash
+npm run build
+```
+
+Runs `vite build` and outputs the compiled React app to `dist-renderer/`. This is the static bundle that the packaged Electron app loads via `mainWindow.loadFile(...)`. You do not need to run this step separately before `npm run dist` — the dist script does it automatically.
+
+</Step>
+
+<Step title="Compile release builds">
+
+```bash
+npm run dist
+```
+
+Runs `npm run build` (renderer) then `electron-builder --win nsis portable`. Electron Builder bundles the renderer output, the `electron/` main process files, `backend/`, `assets/`, and `storage/` into an ASAR archive and produces two Windows executables:
+
+```text
+dist/
+  ServerPilot v2.0.0-Setup.exe      (NSIS installer — per-user, no admin required)
+  ServerPilot v2.0.0-Portable.exe   (portable single EXE)
+```
+
+Both targets compile for `x64` architecture as defined in `electron-builder.json`.
+
+</Step>
+
+</Steps>
+
+---
+
+## Build Output
+
+```text
+dist/
+  ServerPilot v2.0.0-Setup.exe     (NSIS installer)
+  ServerPilot v2.0.0-Portable.exe  (portable single EXE)
+```
+
+The NSIS installer runs per-user (`perMachine: false`) and does not require UAC elevation. It creates a desktop shortcut and a Start Menu entry under **ServerPilot V2**. The user can choose a custom installation directory during setup.
+
+The portable build is a single self-contained `.exe` — no installation required. Place it anywhere and run it.
+
+---
+
+## Project Structure
+
+```text
+ServerPilot/
+  electron/
+    main.js             # Electron main process entry point
+    preload.js          # IPC bridge (contextBridge / validChannels)
+    ipc/
+      serverManager.js  # Server lifecycle, metrics, Playit integration
+      fileManager.js    # File & properties operations
+      backupManager.js  # ZIP backup creation and restore
+      storage.js        # electron-store persistence, dialog handlers
+  src/
+    main.jsx            # React entry point (ReactDOM.createRoot)
+    App.jsx             # Root component and client-side routing
+    pages/              # Dashboard, Console, Players, Files, Properties, Backups, Settings
+    components/         # Shared UI components (buttons, modals, cards, etc.)
+    services/api.js     # Thin wrapper around window.serverPilot.invoke / .on
+    hooks/              # useInterval, useIpcEvent, and other custom hooks
+    utils/format.js     # formatUptime, formatBytes, and other helpers
+  backend/
+    defaults.js         # Default Settings and Server config objects
+    minecraftLogParser.js  # Regex-based Minecraft log event parser
+  assets/
+    icon.ico            # App icon (used by Electron and the installer)
+  storage/              # Default JSON store template files
+  electron-builder.json # Packaging configuration
+  vite.config.js        # Vite configuration (React plugin, output to dist-renderer/)
+  postcss.config.cjs    # PostCSS configuration for Tailwind
+  package.json          # Scripts, dependencies, and Electron entry point
+```
+
+---
+
+## Development Workflow Notes
+
+**Hot reload scope:** Vite's HMR covers everything under `src/`. Editing a React component, a hook, or a utility file updates the running window instantly without losing server state. Editing anything under `electron/` (main process, preload, IPC handlers) requires a full restart of `npm run dev` because the main process is not managed by Vite.
+
+**Environment variable handoff:** `VITE_DEV_SERVER_URL` is set by the `dev` script via `cross-env`. The main process checks for this variable at startup:
+
+```js
+// electron/main.js
+if (process.env.VITE_DEV_SERVER_URL) {
+  mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
+} else {
+  mainWindow.loadFile(path.join(__dirname, '..', 'dist-renderer', 'index.html'));
+}
+```
+
+In production builds this variable is not set, so Electron loads the compiled renderer from `dist-renderer/index.html`.
+
+**Tailwind compilation:** Tailwind CSS classes are processed by Vite's PostCSS pipeline on every build and during HMR. No separate Tailwind CLI step is required — `postcss.config.cjs` is picked up automatically by Vite.
+
+**App data location:** During development, `electron-store` writes to the standard Electron `userData` path — `%APPDATA%\serverpilot-v2\` on Windows. The store file is named `serverpilot-v2.json`. This is the same location used by production builds, so development data and release data coexist in the same store. Clear this file if you need a fresh state.
+
+**Devtools:** The Electron DevTools can be opened in development with `Ctrl+Shift+I` (if enabled in `main.js`). The main process can be debugged by launching Node.js with the `--inspect` flag, but the `npm run dev` script does not add it by default — add `--inspect` to the Electron command in `package.json` if needed.
+
+<Tip>
+  To test the packaged app without publishing a release, run `npm run dist` and launch the resulting `ServerPilot v2.0.0-Portable.exe` from the `dist/` folder. This exercises the ASAR bundle and the production renderer path end-to-end.
+</Tip>

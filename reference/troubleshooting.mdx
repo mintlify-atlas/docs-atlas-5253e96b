@@ -1,0 +1,187 @@
+---
+title: "ServerPilot Troubleshooting Guide"
+sidebarTitle: "Troubleshooting"
+description: "Fix common issues with ServerPilot: Java not found, server crashes, player count not updating, Playit.gg not stopping, and file manager errors."
+---
+
+ServerPilot surfaces most errors as console log lines or status banners inside the app. When something isn't working as expected, the integrated console is the first place to look — it shows the raw Java output, Playit output, and any internal warnings that ServerPilot itself emits. The items below cover the most frequently reported problems and their solutions.
+
+<AccordionGroup>
+
+<Accordion title="Java is not recognized / not found">
+
+**Symptom:** The server starts and immediately crashes. The console shows an error similar to:
+
+```text
+'java' is not recognized as an internal or external command, operable program or batch file.
+```
+
+**Cause:** Windows cannot find `java` on the system `PATH`, or no system-wide Java installation exists.
+
+**Fix:** Set the full absolute path to `java.exe` in **Settings → Default Java Path**. The path typically looks like:
+
+```text
+C:\Program Files\Eclipse Adoptium\jdk-21.0.7.7-hotspot\bin\java.exe
+```
+
+You can also override the Java path per-server in the server's edit panel, which is useful when you run different Minecraft versions that require different Java versions.
+
+**Verify your installation** by opening Command Prompt and running:
+
+```cmd
+java -version
+```
+
+If that command fails, download a JDK from [Eclipse Temurin](https://adoptium.net/) (recommended) or [Oracle Java](https://www.oracle.com/java/technologies/downloads/), then set the full `java.exe` path in ServerPilot instead of relying on the `PATH`.
+
+</Accordion>
+
+<Accordion title='Server crashes with "Could not find or load main class java"'>
+
+**Symptom:** The console shows:
+
+```text
+Error: Could not find or load main class java
+```
+
+**Cause:** The **JVM Arguments** field in the server configuration contains a full Java launch command, such as:
+
+```text
+java -Xmx4G -Xms2G -jar paper.jar nogui
+```
+
+ServerPilot already constructs the complete launch command itself. When you duplicate these arguments in the JVM Arguments field, Java sees `java` as a class name to load — which doesn't exist — and crashes immediately.
+
+**Fix:** Open the server's edit panel and clear the JVM Arguments field. Only include *extra* JVM flags that ServerPilot does not manage automatically. For example:
+
+```text
+-XX:+UseG1GC
+```
+
+ServerPilot automatically strips `java`/`java.exe`, `-jar`, the JAR filename, `nogui`, and duplicate `-Xms`/`-Xmx` flags from the JVM Arguments field before launching. A warning is printed to the console for each stripped argument so you can verify what was removed.
+
+</Accordion>
+
+<Accordion title="Server won't start — EULA not accepted">
+
+**Symptom:** The server starts but immediately stops. The console contains a line like:
+
+```text
+You need to agree to the Minecraft End User License Agreement in order to run the server.
+Please see eula.txt for details.
+```
+
+**Cause:** Minecraft requires explicit EULA acceptance before a server will start for the first time.
+
+**Fix:**
+
+1. Click **Open Folder** in ServerPilot (or navigate to your server folder in Explorer).
+2. Open `eula.txt` in any text editor.
+3. Change `eula=false` to `eula=true` and save the file.
+4. Start the server again from ServerPilot.
+
+<Tip>
+  If `eula.txt` doesn't exist yet, you need to run the server once first so Minecraft can generate it. Use the **Open Terminal** button in ServerPilot to open `cmd.exe` directly in the server folder, then run `java -jar paper.jar nogui` once manually to generate the initial files.
+</Tip>
+
+</Accordion>
+
+<Accordion title="Player count is not updating">
+
+**Symptom:** Players are online but the Players tab shows 0 online, or the player list doesn't update when someone joins or leaves.
+
+**Cause:** ServerPilot tracks players entirely by parsing the server's standard log output. It looks for specific patterns in the console lines:
+
+```text
+Steve joined the game
+Steve left the game
+<Steve> hello world
+Steve issued server command: /gamemode creative
+```
+
+If the server is using a heavily modified logging format, a custom logger plugin, or if log output is suppressed, these patterns may not appear and player tracking will not work.
+
+**What to check:**
+
+- Open the Console tab in ServerPilot and watch for join/leave messages as players connect. They should appear exactly as `<Username> joined the game`.
+- Make sure you are not using a plugin that replaces the default join/leave messages with custom text (e.g. custom join announcements that omit the standard message).
+- Vanilla, Paper, Fabric, and Forge servers all emit standard join/leave lines by default.
+
+<Note>
+  Some player data — exact ping, live coordinates, and inventory — is shown as `Pending` because the standard Minecraft log format does not expose this information. Plugin support would be required for those fields.
+</Note>
+
+</Accordion>
+
+<Accordion title="Playit.gg does not stop when the server stops">
+
+**Symptom:** After stopping the server in ServerPilot, the Playit.gg process continues running in the background.
+
+**Cause:** ServerPilot can only stop a Playit process that *it* started. If Playit was launched manually from another terminal window or via its own startup entry, ServerPilot has no reference to that process and cannot stop it.
+
+**Fix:**
+
+1. Close any manually-opened Playit windows.
+2. Set the Playit executable path in **Settings → Playit Executable Path** (or in the per-server settings).
+3. Enable **Auto-start Playit** in the server configuration.
+4. Start the server through ServerPilot — it will launch Playit automatically and track the process ID.
+
+When the server stops (or is force-killed), ServerPilot sends a `kill()` signal to the Playit process it owns, with a 3-second fallback to `taskkill.exe /T /F` if it doesn't exit cleanly.
+
+<Warning>
+  Make sure you are using the latest ServerPilot build for the most reliable Playit lifecycle management.
+</Warning>
+
+</Accordion>
+
+<Accordion title='File manager shows "Path escapes the server folder" error'>
+
+**Symptom:** An operation in the File Manager (read, write, create, delete, or rename) fails with:
+
+```text
+Path escapes the server folder
+```
+
+**Cause:** The resolved absolute path of the target file or folder fell outside the server's root directory. This is most commonly triggered by path traversal attempts like `../../Windows/System32`, but can also happen with certain symbolic links.
+
+**Note:** This is an intentional security restriction. The File Manager is only permitted to operate on files within the server's configured root folder. This behavior cannot be disabled or bypassed — it is enforced in the main process before any filesystem operation runs.
+
+If you need to edit a file outside the server folder, use Windows Explorer or another editor directly.
+
+</Accordion>
+
+<Accordion title="Crash panel shows and auto-restart is not working">
+
+**Symptom:** The crash panel appears after a server crash, but ServerPilot does not automatically restart the server.
+
+**What to check:**
+
+1. **Confirm the setting is enabled.** Open Settings and verify that `autoRestartCrashed` is toggled on. Auto-restart is disabled by default.
+
+2. **Confirm it was a true crash.** Auto-restart only triggers when the Java process exits with a non-zero exit code (or an unexpected signal). If the server was stopped intentionally (via `server:stop` or `server:kill`), auto-restart will not fire.
+
+3. **Check for circular crashes.** If the server crashes immediately on every restart attempt (e.g. due to a corrupt world or a broken plugin), it will loop. Always check the Console tab for the root cause of the crash before relying on auto-restart.
+
+<Info>
+  Auto-restart waits 2.5 seconds after a crash before attempting to start the server again. This delay is intentional to allow filesystem writes to flush before the new process reads the world files.
+</Info>
+
+</Accordion>
+
+<Accordion title="Server JAR not detected when adding a server">
+
+**Symptom:** After selecting a server folder with `dialog:select-folder`, the JAR name field is empty or shows the wrong JAR. The server fails to start with `Server JAR does not exist`.
+
+**Cause:** The JAR file is not in the root of the selected server folder, has an unusual name, or the folder is empty.
+
+**What to check:**
+
+- The JAR must be in the **root** of the folder you selected — not in a subfolder.
+- `server:detect` prefers JARs whose filename contains `paper`, then `fabric`, then `forge`, then any other `.jar`. If you have multiple JARs, check which one was auto-selected.
+- If the auto-detected name is wrong, open the server edit panel and manually set **Server JAR** to the exact filename including the `.jar` extension (e.g. `fabric-server-launch.jar`).
+
+**Verify** by opening the server folder in Explorer (**Open Folder** button) and confirming the JAR file is present at the top level.
+
+</Accordion>
+
+</AccordionGroup>

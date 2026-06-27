@@ -1,0 +1,233 @@
+---
+title: "Player Tracking and Activity Feed in ServerPilot"
+sidebarTitle: "Players"
+description: "ServerPilot tracks players by parsing live Minecraft server logs. View online status, session time, chat, deaths, advancements, commands, and kicks in real time."
+---
+
+The Players tab gives you a live picture of everyone who has joined your server. ServerPilot does not require any plugins — it works entirely by parsing the Minecraft server's own log output. Every time a player joins, leaves, chats, dies, earns an advancement, or runs a command, `parseMinecraftLog()` identifies the event type and sends an updated snapshot to the UI via the `server:players` IPC event.
+
+## How Player Data Is Gathered
+
+The Electron main process attaches a line reader to the Minecraft server's `stdout`. Each line is passed through `parseMinecraftLog()` from `backend/minecraftLogParser.js`. When the parser returns a recognized event, `processMinecraftEvent` updates the in-memory player state (a `Map` keyed by username) and the activity log (an array capped at **250 entries**).
+
+The `server:players` IPC event is emitted after every player state change. Its payload is:
+
+```json
+{
+  "serverId": "your-server-id",
+  "online": [
+    {
+      "username": "Steve",
+      "online": true,
+      "joinTime": "2024-01-15T09:12:07.000Z",
+      "lastActivity": "2024-01-15T09:12:10.000Z",
+      "lastActivityText": "Chat: hello everyone",
+      "ping": "Pending",
+      "dimension": "Overworld",
+      "uuid": "abc123de-f456-..."
+    }
+  ],
+  "onlineCount": 1,
+  "activity": [...]
+}
+```
+
+## Tracked Event Types
+
+<Accordion title="join — Player joins the server">
+  **Example log line:**
+  ```
+  [09:12:07 INFO]: Steve joined the game
+  ```
+  **Parsed result:**
+  ```json
+  { "type": "join", "username": "Steve", "text": "Steve joined the server" }
+  ```
+  The player is created or updated in the player map with `online: true`, a fresh `joinTime`, and `lastActivityText: "Joined"`.
+</Accordion>
+
+<Accordion title="leave — Player leaves the server">
+  **Example log line:**
+  ```
+  [09:15:42 INFO]: Steve left the game
+  ```
+  **Parsed result:**
+  ```json
+  { "type": "leave", "username": "Steve", "text": "Steve left the server" }
+  ```
+  The player's `online` flag is set to `false` and their `status` becomes `"Offline"`.
+</Accordion>
+
+<Accordion title="chat — Player sends a chat message">
+  **Example log line:**
+  ```
+  [09:12:10 INFO]: <Steve> hello everyone
+  ```
+  **Parsed result:**
+  ```json
+  { "type": "chat", "username": "Steve", "message": "hello everyone", "text": "Steve sent message: hello everyone" }
+  ```
+  The player's `lastActivityText` is updated to `Chat: hello everyone`.
+</Accordion>
+
+<Accordion title="death — Player dies">
+  **Example log line:**
+  ```
+  [09:13:55 INFO]: Steve was slain by Zombie
+  ```
+  **Parsed result:**
+  ```json
+  { "type": "death", "username": "Steve", "message": "Steve was slain by Zombie", "text": "Steve was slain by Zombie" }
+  ```
+  Death events are matched against a broad set of vanilla death message verbs: `was`, `drowned`, `blew up`, `hit the ground`, `fell`, `burned`, `went up`, `tried`, `walked`, `died`, `starved`, `suffocated`, `froze`, `withered`, and more.
+</Accordion>
+
+<Accordion title="advancement — Player earns an advancement or completes a challenge">
+  **Example log lines:**
+  ```
+  [09:14:20 INFO]: Steve has made the advancement [Stone Age]
+  [09:14:21 INFO]: Steve has completed the challenge [Very Very Frightening]
+  ```
+  **Parsed result:**
+  ```json
+  { "type": "advancement", "username": "Steve", "message": "Stone Age", "text": "Steve made advancement: Stone Age" }
+  ```
+  Both `has made the advancement` and `has completed the challenge` variants are recognized.
+</Accordion>
+
+<Accordion title="command — Player runs a server command">
+  **Example log line:**
+  ```
+  [09:14:45 INFO]: Steve issued server command: /tp Alex
+  ```
+  **Parsed result:**
+  ```json
+  { "type": "command", "username": "Steve", "message": "tp Alex", "text": "Steve used command: /tp Alex" }
+  ```
+  The leading `/` is stripped from the matched command string.
+</Accordion>
+
+<Accordion title="kick — Player is kicked from the game">
+  **Example log line:**
+  ```
+  [09:15:01 INFO]: Steve was kicked from the game: flying is not enabled
+  ```
+  **Parsed result:**
+  ```json
+  { "type": "kick", "username": "Steve", "message": "flying is not enabled", "text": "Steve was kicked" }
+  ```
+  On a kick event the player's `online` flag is set to `false` and their `status` becomes `"Kicked"`.
+</Accordion>
+
+<Accordion title="moderation — Server-side kick or ban command">
+  **Example log line:**
+  ```
+  [09:15:10 INFO]: Kicked player Steve
+  ```
+  **Parsed result:**
+  ```json
+  { "type": "moderation", "username": "Steve", "message": "Kicked player Steve", "text": "Kicked player Steve" }
+  ```
+  Matches both `Kicked player <username>` and `Banned player <username>` patterns (case-insensitive).
+</Accordion>
+
+<Accordion title="login — Player connection attempt with IP and entity ID">
+  **Example log line:**
+  ```
+  [09:12:06 INFO]: Steve[/127.0.0.1:52341] logged in with entity id 123 at (0.5, 64.0, 0.5)
+  ```
+  **Parsed result:**
+  ```json
+  { "type": "login", "username": "Steve", "message": "0.5, 64.0, 0.5", "text": "Steve logged in" }
+  ```
+  The `message` field contains the coordinates string from the log line.
+</Accordion>
+
+<Accordion title="uuid — Player UUID resolved from logs">
+  **Example log line:**
+  ```
+  [09:12:06 INFO]: UUID of player Steve is abc123de-f456-7890-abcd-ef1234567890
+  ```
+  **Parsed result:**
+  ```json
+  { "type": "uuid", "username": "Steve", "uuid": "abc123de-f456-7890-abcd-ef1234567890", "text": "Resolved UUID for Steve" }
+  ```
+  Once resolved, the UUID is stored on the player object and shown in the Player Profile panel. Until this line appears, the UUID is displayed as `Pending`.
+</Accordion>
+
+## Player Cards
+
+The main area of the Players tab shows a card for every player that has appeared in the server logs since the server was started. Each card displays:
+
+- **Avatar** — an initial letter avatar generated from the first character of the username
+- **Username** and an online/offline status badge
+- **Last activity text** — a short description of the player's most recent tracked event
+- **Session** — either the formatted session duration (e.g. `00:05:32`) if the player is currently online, or a relative time since their last activity (e.g. `3m ago`) if offline
+- **World** — dimension name, defaulting to `Overworld` (coordinates require plugin support)
+- **Ping** — displayed as `Pending` (requires plugin support or external data)
+
+## Filter Tabs
+
+<Tabs>
+  <Tab title="All">
+    Shows every player tracked since the server started, online and offline.
+  </Tab>
+  <Tab title="Online">
+    Shows only players whose `online` flag is currently `true`.
+  </Tab>
+  <Tab title="Whitelist">
+    Filter by whitelist status. Currently scoped to log-based data — cross-referencing with `whitelist.json` requires the Properties tab.
+  </Tab>
+  <Tab title="Operators">
+    Filter by operator status. Cross-reference with `ops.json` in the Properties tab.
+  </Tab>
+  <Tab title="Banned">
+    Filter by banned status. Cross-reference with `banned-players.json` in the Properties tab.
+  </Tab>
+  <Tab title="Monitoring">
+    A catch-all monitoring view showing all known players.
+  </Tab>
+</Tabs>
+
+## Sort and Search
+
+Use the toolbar controls to narrow the player list:
+
+- **Search** — type any portion of a username or UUID to filter the visible player cards in real time
+- **Sort by name** — alphabetical order by `username` (default)
+- **Sort by status** — online players first, then alphabetical
+- **Sort by join time** — ordered by `joinTime` ascending
+- **Sort by activity** — ordered by `lastActivity` descending (most recently active first)
+
+The toolbar also shows a live "Updated X seconds ago" indicator derived from the most recent activity timestamp.
+
+## Activity Feed
+
+The right sidebar shows a **Live Activity** panel with the most recent **250 events** across all players, newest first. Each event entry shows:
+
+- An icon representing the event type (e.g. `UserCheck` for join, `MessageSquare` for chat, `ShieldAlert` for death or kick, `Sparkles` for advancement)
+- The event text, e.g. `Steve made advancement: Stone Age`
+- A localized timestamp
+
+Dangerous events (death, kick, moderation) are highlighted with a red icon background; leave events use a muted grey; all others use the neon green accent.
+
+## Player Profile and Actions Panel
+
+Clicking a player card selects that player and updates the right sidebar with:
+
+- **Player Profile** — large avatar, username, online badge, UUID with a copy button, session duration, and last-seen time
+- **Actions** — quick-copy command buttons for `tell`, `op`, `deop`, `kick`, `ban`, and `tp` for the selected player
+- **Status** — health, hunger, join time, and session duration (health and hunger are currently fixed display values; live data requires a plugin)
+- **Location** — dimension name and X/Y/Z coordinates (coordinates shown as `Pending` — requires plugin or external data)
+- **Statistics** — play time, last event text, ping, and UUID
+
+## Pending Fields
+
+Several fields on the player profile require data that Minecraft does not expose in its standard log output:
+
+| Field | Status | How to get live data |
+|---|---|---|
+| Ping | `Pending` | Requires a Paper/Spigot plugin |
+| X, Y, Z coordinates | `Pending` | Requires a plugin |
+| Health / Hunger | Fixed display | Requires a plugin |
+| Distance traveled | `Pending` | Requires a plugin or stats file parsing |

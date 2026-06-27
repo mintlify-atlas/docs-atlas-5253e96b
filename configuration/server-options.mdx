@@ -1,0 +1,134 @@
+---
+title: "Per-Server Configuration Options in ServerPilot"
+sidebarTitle: "Server Options"
+description: "Configure each Minecraft server in ServerPilot independently: name, folder, JAR, Java path, RAM, JVM arguments, Playit.gg integration, and server type."
+---
+
+Every server you add to ServerPilot gets its own configuration record stored independently of all other servers. Per-server settings always take precedence over the [global defaults](/configuration/settings) — if a field is left blank, ServerPilot falls back to the corresponding value in your global Settings. This lets you share a common Java path and RAM budget across most servers while still overriding those values for specific instances that need them.
+
+## How server data is stored
+
+Servers are persisted as a JSON array under the `servers` key in the same Electron-Store file used for global settings:
+
+```text
+%AppData%\serverpilot-v2\serverpilot-v2.json
+```
+
+Each entry in the array is a fully-normalized server object. Here is an example record:
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "My Paper Server",
+  "folderPath": "D:\\MineCraft\\Server",
+  "jarName": "paper.jar",
+  "javaPath": "java",
+  "ramMin": "2G",
+  "ramMax": "4G",
+  "jvmArgs": "-XX:+UseG1GC",
+  "serverType": "Paper",
+  "playitPath": "",
+  "autoStartPlayit": true,
+  "createdAt": "2024-01-15T10:00:00.000Z",
+  "updatedAt": "2024-01-15T10:00:00.000Z"
+}
+```
+
+## IPC channels
+
+ServerPilot's renderer communicates with the main process using the following IPC channels for server management:
+
+| Channel | Description |
+|---|---|
+| `server:add` | Create a new server record (auto-generates `id`, `createdAt`, `updatedAt`) |
+| `server:update` | Update an existing server by `id`; requires `id` in the payload |
+| `server:remove` | Delete a server by `id`; returns the updated servers array |
+| `server:detect` | Scan a folder path and auto-detect the JAR name and server type |
+
+## Server options reference
+
+<ParamField path="name" type="string" default="New Server">
+  The display name for this server. Shown in the sidebar, the server dashboard header, and in system tray notifications (e.g. `"My Paper Server is starting"`). Choose a name that lets you distinguish this server at a glance when running multiple instances.
+</ParamField>
+
+<ParamField path="folderPath" type="string" default='""'>
+  The absolute path to the directory that contains this server's files — including `server.properties`, world data, and the JAR. This field is **required**: ServerPilot will refuse to start the server if the folder does not exist on disk.
+
+  ```text
+  Example: D:\MineCraft\Server
+  ```
+
+  Use the folder-picker button in the UI (or the `dialog:select-folder` IPC call) to browse to the correct directory.
+</ParamField>
+
+<ParamField path="jarName" type="string" default='""'>
+  The filename of the server JAR, relative to `folderPath`. This field is **required** for launch. ServerPilot appends this name after `-jar` in the final Java command.
+
+  ```text
+  Examples: paper.jar  fabric-server-launch.jar  forge-1.21.jar
+  ```
+
+  You can use the `server:detect` IPC channel to auto-populate this field by scanning `folderPath` — it will pick the first JAR it finds, preferring Paper → Fabric → Forge → any other JAR in that order.
+</ParamField>
+
+<ParamField path="javaPath" type="string" default="java">
+  The Java executable to use for this specific server. Leave blank (or set to `java`) to inherit the value from [`defaultJavaPath`](/configuration/settings#defaultjavapath) in global Settings. Set to a full absolute path when this server requires a different Java version than your system default.
+
+  ```text
+  Example: C:\Program Files\Eclipse Adoptium\jdk-17.0.11\bin\java.exe
+  ```
+</ParamField>
+
+<ParamField path="ramMin" type="string" default="2G">
+  The minimum Java heap allocation for this server, passed as `-Xms`. Leave blank to inherit from [`defaultRamMin`](/configuration/settings#defaultrammin) in global Settings. Accepts standard JVM notation (`512M`, `1G`, `4G`, etc.).
+
+  <Note>
+    Enter only the size value — do **not** include the `-Xms` flag itself. That is added automatically by ServerPilot at launch time.
+  </Note>
+</ParamField>
+
+<ParamField path="ramMax" type="string" default="4G">
+  The maximum Java heap allocation for this server, passed as `-Xmx`. Leave blank to inherit from [`defaultRamMax`](/configuration/settings#defaultrammax) in global Settings. Accepts the same notation as `ramMin`.
+</ParamField>
+
+<ParamField path="jvmArgs" type="string" default='""'>
+  Extra JVM flags inserted between the Java executable and `-jar` at launch. Accepts a space-delimited string of arguments; quoted values with internal spaces are supported (e.g. `-Dfoo="bar baz"`).
+
+  ServerPilot automatically strips certain arguments from this field before launch and prints a warning to the console if any are removed. See the [JVM Arguments](/configuration/jvm-arguments) page for the full list of sanitized flags, recommended GC settings, and safe argument patterns.
+
+  ```text
+  Example: -XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200
+  ```
+</ParamField>
+
+<ParamField path="serverType" type="string" default="Vanilla">
+  An informational label describing the server software. This field does not affect how ServerPilot launches the server — it is used for display purposes in the sidebar and dashboard. ServerPilot auto-detects this value when you use the `server:detect` IPC channel:
+
+  | Detected value | Detection rule |
+  |---|---|
+  | `Paper` | JAR filename contains `paper` |
+  | `Fabric` | JAR filename contains `fabric` |
+  | `Forge` | JAR filename contains `forge` |
+  | `Vanilla` | JAR found but no known keyword matched |
+  | `Unknown` | No JAR file found in the folder |
+</ParamField>
+
+<ParamField path="playitPath" type="string" default='""'>
+  A per-server override for the path to the `playit.exe` executable. When set, this value is used instead of the global [`playitPath`](/configuration/settings#playitpath) from Settings. Leave blank to fall back to the global path.
+</ParamField>
+
+<ParamField path="autoStartPlayit" type="boolean" default="true">
+  Controls whether Playit.gg is automatically launched alongside this server. When set, this value overrides the global [`autoStartPlayit`](/configuration/settings#autostartplayit) toggle for this server only. Playit will only start if a valid `playitPath` is available (either from this server or from global Settings).
+</ParamField>
+
+<ParamField path="id" type="string (UUID)">
+  A universally unique identifier automatically generated by ServerPilot when the server is first created. This field is read-only — you should never need to set or change it manually. It is used internally to associate runtime state, logs, and player data with the correct server record.
+</ParamField>
+
+<ParamField path="createdAt" type="string (ISO 8601)">
+  The timestamp at which this server was first added to ServerPilot. Set once on creation and never updated afterward. Managed automatically — no manual input required.
+</ParamField>
+
+<ParamField path="updatedAt" type="string (ISO 8601)">
+  The timestamp of the most recent change to this server's configuration. Updated automatically by ServerPilot every time `server:add` or `server:update` is called. Managed automatically — no manual input required.
+</ParamField>

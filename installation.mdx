@@ -1,0 +1,116 @@
+---
+title: "Install ServerPilot on Windows 10 and 11"
+sidebarTitle: "Installation"
+description: "Download and install ServerPilot using the Windows installer or portable EXE. Covers both install and portable modes with step-by-step instructions."
+---
+
+ServerPilot ships as two ready-to-run Windows executables — a traditional installer and a portable binary — both available from the GitHub Releases page. Neither option requires Administrator privileges, and neither bundles Java, so the download is small and the install is fast. Choose the option that fits how you prefer to manage software on your machine.
+
+## System Requirements
+
+Before installing, confirm your system meets these requirements:
+
+| Requirement | Details |
+|-------------|---------|
+| **Operating system** | Windows 10 or Windows 11 (64-bit) |
+| **Java runtime** | Java 17 or newer — must be installed separately |
+| **Server folder** | At least one folder containing a Minecraft server JAR (e.g. `paper.jar`) |
+| **Disk space** | Sufficient space for your server world data plus backups |
+| **Playit.gg** | Optional — only needed for public tunneling without port forwarding |
+
+Java is **not** included with ServerPilot. The app will use whatever `java` executable is on your system `PATH`, or you can provide a full path to `java.exe` per server. See the [Quickstart](/quickstart) guide for Java installation instructions.
+
+## Download Options
+
+Both files are published on the [GitHub Releases page](https://github.com/GKExpo/ServerPilot/releases):
+
+<CardGroup cols={2}>
+  <Card title="ServerPilot-Setup-X.X.X.exe" icon="box-open">
+    Standard Windows NSIS installer. Adds ServerPilot to your Start Menu, creates an uninstall entry in Windows Settings, and places app data in `%AppData%\serverpilot-v2\`. Recommended for most users.
+  </Card>
+  <Card title="ServerPilot-Portable-X.X.X.exe" icon="usb-drive">
+    Single self-contained executable — no installation needed. Copy it to any folder, a USB drive, or a cloud-synced directory and run it directly. App data is still written to `%AppData%\serverpilot-v2\`.
+  </Card>
+</CardGroup>
+
+## Install Using the Windows Installer
+
+<Steps>
+  <Step title="Download the installer">
+    Go to the [GitHub Releases page](https://github.com/GKExpo/ServerPilot/releases) and download `ServerPilot-Setup-X.X.X.exe` (where `X.X.X` is the latest version number).
+  </Step>
+  <Step title="Run the installer">
+    Double-click the downloaded `.exe` file to launch the NSIS setup wizard. Windows SmartScreen may show a one-time prompt for an unrecognised publisher — click **More info → Run anyway** to proceed.
+
+    <Note>
+      No Administrator privileges are required. ServerPilot's installer is configured as `asInvoker`, meaning it intentionally runs at your normal user permission level and never requests elevation. Your system files are never touched.
+    </Note>
+  </Step>
+  <Step title="Complete the setup wizard">
+    Follow the on-screen prompts to choose an install location (the default is fine for most users) and create a Start Menu shortcut. Click **Install**, then **Finish** when the wizard completes.
+  </Step>
+  <Step title="Launch ServerPilot">
+    Open ServerPilot from the Start Menu or the desktop shortcut that was created. On first launch the **Onboarding Wizard** opens automatically to guide you through adding your first server.
+  </Step>
+  <Step title="Complete the Onboarding Wizard">
+    The wizard walks you through providing a server folder path, a JAR file name, your Java executable, and RAM settings. You can also configure a Playit.gg executable path during onboarding. Once finished, your server appears in the sidebar ready to start.
+  </Step>
+</Steps>
+
+## Run the Portable Version
+
+<Steps>
+  <Step title="Download the portable EXE">
+    Go to the [GitHub Releases page](https://github.com/GKExpo/ServerPilot/releases) and download `ServerPilot-Portable-X.X.X.exe`.
+  </Step>
+  <Step title="Place the EXE anywhere">
+    Copy `ServerPilot-Portable-X.X.X.exe` to any location you prefer — your Desktop, a project folder, or a USB drive. No extraction step is needed.
+  </Step>
+  <Step title="Run it">
+    Double-click the file to launch the app. As with the installer version, Windows SmartScreen may prompt you once. App settings and server configurations are saved to `%AppData%\serverpilot-v2\` on your user profile, not next to the EXE, so your data is preserved even if you move the binary.
+  </Step>
+  <Step title="Complete the Onboarding Wizard">
+    On first launch the **Onboarding Wizard** opens automatically. Follow the prompts to add your first server, then start managing it from the dashboard.
+  </Step>
+</Steps>
+
+## Where App Data Is Stored
+
+ServerPilot stores all application settings, server configurations, and preferences in Electron's standard user-data path:
+
+```text
+%AppData%\serverpilot-v2\
+```
+
+On a typical Windows installation this resolves to:
+
+```text
+C:\Users\<YourUsername>\AppData\Roaming\serverpilot-v2\
+```
+
+Your actual **Minecraft server files** (world data, plugins, configs) remain exactly where you put them in your chosen server folder. ServerPilot never copies or moves your server files — it only reads and writes within the folder paths you explicitly provide.
+
+Server backups created by ServerPilot are written to a `backups/` subfolder inside each individual server directory:
+
+```text
+D:\MineCraft\Server\
+  backups\
+    backup-2025-01-15T10-30-00.zip
+    backup-2025-01-16T08-00-00.zip
+```
+
+## Uninstalling ServerPilot
+
+If you installed using `ServerPilot-Setup-X.X.X.exe`, remove the app through the standard Windows uninstall flow:
+
+1. Open **Windows Settings** → **Apps** (or **Apps & features** on Windows 10).
+2. Search for **ServerPilot** in the app list.
+3. Click **Uninstall** and follow the prompts.
+
+Uninstalling removes the application binaries and Start Menu entries. Your server files and the `%AppData%\serverpilot-v2\` data folder are **not** deleted automatically — remove that folder manually if you want a clean removal.
+
+If you used the portable version, simply delete the `.exe` file. Delete `%AppData%\serverpilot-v2\` manually to remove saved settings.
+
+## Next Step
+
+Once ServerPilot is installed and the Onboarding Wizard is open, head to the [Quickstart](/quickstart) guide to set up Java, download a server JAR, accept the Minecraft EULA, and launch your first server in under 10 minutes.

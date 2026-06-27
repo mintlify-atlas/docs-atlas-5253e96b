@@ -1,0 +1,111 @@
+{
+  "projectType": "saas",
+  "projectName": "ServerPilot",
+  "projectDescription": "A Windows desktop Electron application that provides a one-click control panel for managing local Minecraft servers, with live monitoring, Playit.gg tunneling, file editing, player tracking, and backup management.",
+  "theme": "aspen",
+  "primaryColor": "#aa125e",
+  "lightColor": "#420a53",
+  "darkColor": "#f4ecf2",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Setup Guide",
+            "pages": [
+              "setup/java",
+              "setup/server-jar",
+              "setup/playit",
+              "setup/adding-a-server"
+            ]
+          },
+          {
+            "group": "Features",
+            "pages": [
+              "features/dashboard",
+              "features/console",
+              "features/players",
+              "features/file-manager",
+              "features/properties",
+              "features/backups"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/settings",
+              "configuration/server-options",
+              "configuration/jvm-arguments"
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": [
+              "reference/ipc-channels",
+              "reference/troubleshooting",
+              "reference/security",
+              "reference/building-from-source"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "One-click server start/stop/restart with automatic EULA and crash detection",
+    "Live dashboard with real-time CPU, RAM, TPS, uptime, and player count metrics",
+    "Integrated dark-themed console with live log streaming and command input",
+    "Automatic Playit.gg tunnel management for public multiplayer without port forwarding",
+    "Player tracking via Minecraft log parsing — joins, leaves, chat, deaths, advancements, commands, kicks",
+    "File manager with Monaco Editor for browsing and editing server files in-app",
+    "Visual server.properties editor with ops, whitelist, and banned-players JSON management",
+    "One-click ZIP backup creation and restore",
+    "Multi-server management with per-server configuration",
+    "Full Electron sandboxing with no Node.js access in the renderer process"
+  ],
+  "publicApiSurface": [
+    "IPC invoke: app:data:get",
+    "IPC invoke: settings:update",
+    "IPC invoke: server:add",
+    "IPC invoke: server:update",
+    "IPC invoke: server:remove",
+    "IPC invoke: server:start",
+    "IPC invoke: server:stop",
+    "IPC invoke: server:restart",
+    "IPC invoke: server:kill",
+    "IPC invoke: server:command",
+    "IPC invoke: server:open-folder",
+    "IPC invoke: server:open-terminal",
+    "IPC invoke: server:detect",
+    "IPC invoke: metrics:get",
+    "IPC invoke: files:list",
+    "IPC invoke: files:read",
+    "IPC invoke: files:write",
+    "IPC invoke: files:create",
+    "IPC invoke: files:delete",
+    "IPC invoke: files:rename",
+    "IPC invoke: properties:get",
+    "IPC invoke: properties:save",
+    "IPC invoke: backups:create",
+    "IPC invoke: backups:list",
+    "IPC invoke: backups:restore",
+    "IPC event: server:log",
+    "IPC event: server:status",
+    "IPC event: server:metrics",
+    "IPC event: server:players",
+    "IPC event: toast",
+    "parseMinecraftLog(rawLine) → event | null",
+    "npm run dev",
+    "npm run build",
+    "npm run dist"
+  ]
+}

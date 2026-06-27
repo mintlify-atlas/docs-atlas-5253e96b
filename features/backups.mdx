@@ -1,0 +1,90 @@
+---
+title: "Create and Restore Minecraft World Backups"
+sidebarTitle: "Backups"
+description: "ServerPilot backs up your entire Minecraft server world to a ZIP archive with one click and lets you restore any previous backup instantly."
+---
+
+The Backups tab lets you create a complete snapshot of your Minecraft server folder with a single click. ServerPilot compresses the entire server directory — including your world, plugins, and configuration files — into a ZIP archive stored inside the server folder itself. You can browse your backup history and restore any previous snapshot just as easily.
+
+<Tip>
+  Create a backup before making any significant change: updating the server JAR, installing or updating plugins, changing the world seed, or running commands that could permanently alter the world. It takes only a few seconds and gives you a safe rollback point.
+</Tip>
+
+## How Backup Creation Works
+
+Clicking **Backup Server** (or the **Backup** button on the Dashboard) calls the `backups:create` IPC handler. The handler:
+
+1. Resolves the server's folder path and creates the `backups/` subdirectory if it doesn't exist
+2. Generates a timestamped filename by slugifying the server name and appending an ISO timestamp with colons and dots replaced by hyphens:
+   - Format: `{server-name-slug}-{ISO-timestamp}.zip`
+   - Example: `My-Paper-Server-2024-01-15T10-30-00-000Z.zip`
+3. Creates a writable stream to the output ZIP path and pipes it through `archiver` with `zlib` compression level **9** (maximum compression)
+4. Uses `archive.glob('**/*', { cwd: server.folderPath, ignore: ['backups/**'] })` so the `backups/` subfolder itself is never included in any backup (preventing recursive growth)
+5. Calls `archive.finalize()` and waits for the output stream to close
+6. Fires a desktop toast notification: *"Backup completed — \{server name\} backup is ready."*
+
+```js
+archive.glob('**/*', {
+  cwd: server.folderPath,
+  ignore: ['backups/**']
+});
+```
+
+The backup runs synchronously on the Electron main process. The UI disables the **Backup Server** button (`busy` state) while creation is in progress.
+
+## Where Backups Are Stored
+
+All ZIP files are stored in the `backups/` subfolder inside your server folder:
+
+```
+MyServer/
+├── world/
+├── plugins/
+├── server.properties
+├── paper.jar
+└── backups/
+    ├── MyServer-2024-01-15T10-30-00-000Z.zip
+    └── MyServer-2024-01-14T08-00-00-000Z.zip
+```
+
+## Backup History List
+
+The Backups tab calls `backups:list` on mount and after every new backup is created. The handler reads the `backups/` directory, filters for `.zip` files, stats each one, and returns them sorted by creation date — **newest first**. Each entry in the list shows:
+
+- **Filename** — the full backup ZIP name
+- **Created** — the file creation timestamp formatted with `toLocaleString()`
+- **Size** — the ZIP file size formatted as a human-readable value (e.g. `1.2 GB`)
+
+If no backups exist yet, the list shows *"No backups yet."*
+
+## Restoring a Backup
+
+Clicking **Restore** next to any backup entry prompts for confirmation (*"Restore {name}? This overwrites matching server files."*). If confirmed, the `backups:restore` IPC handler:
+
+1. Validates that the `backupPath` is inside the server's `backups/` subfirectory using a strict `path.dirname` check — no other paths can be extracted
+2. Calls `extract-zip` to unzip the archive back into the server folder root, overwriting any files that exist with the same relative paths
+3. Fires a desktop notification: *"Backup restored — \{server name\} was restored from \{filename\}."*
+
+<Warning>
+  **Stop the server before restoring a backup.** Restoring while the server is running will overwrite world and configuration files that the Java process has open, which can cause data corruption, a crash, or an inconsistent world state. Use the **Stop Server** button on the Dashboard first, wait for the status to show `OFFLINE`, then restore.
+</Warning>
+
+## Triggering a Backup from the Dashboard
+
+You do not need to open the Backups tab to create a backup. The **Backup** button in the Dashboard header calls `backups:create` directly. This is useful when you want to snapshot the server quickly before a risky operation without navigating away from the Dashboard.
+
+## Managing Backup Storage
+
+ServerPilot does not automatically delete old backups. Because Minecraft server folders can be large (especially worlds with significant exploration), backups at zlib level 9 can still reach several hundred megabytes or more. You are responsible for managing disk space:
+
+- Delete old backups manually through the File Manager (navigate into the `backups/` folder) or through Windows Explorer
+- Consider keeping only the last few backups and deleting older ones periodically
+- If disk space is a concern, pause regular backups before running long exploration or building sessions, then back up afterward
+
+## IPC Reference
+
+| Channel | Direction | Payload | Returns |
+|---|---|---|---|
+| `backups:list` | Renderer → Main | `id` (server ID) | Array of `{ name, fullPath, size, createdAt }`, newest first |
+| `backups:create` | Renderer → Main | `id` (server ID) | `{ fullPath, name }` of the new ZIP |
+| `backups:restore` | Renderer → Main | `{ id, backupPath }` | `true` |

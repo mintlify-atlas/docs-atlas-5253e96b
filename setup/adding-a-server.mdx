@@ -1,0 +1,125 @@
+---
+title: "Add and Configure a Server in ServerPilot"
+sidebarTitle: "Adding a Server"
+description: "Add your Minecraft server folder to ServerPilot and configure name, JAR, Java path, RAM, JVM arguments, and Playit.gg settings."
+---
+
+Once you have Java installed and a prepared server folder with an accepted EULA, adding your server to ServerPilot takes less than a minute. The Server Modal walks you through every option, and most fields are pre-filled from your global Settings defaults — so you only need to fill in the folder path and JAR name for subsequent servers.
+
+## Adding Your First Server
+
+<Steps>
+  <Step title="Open the Add Server modal">
+    Click the **Add Server** button (or the **+** icon in the sidebar). The Server Modal opens with all fields pre-populated from your global Settings defaults.
+  </Step>
+  <Step title="Fill in the required fields">
+    At minimum you need to provide:
+
+    - **Server name** — a display name for this server in the sidebar
+    - **Folder path** — the full path to your server folder on disk
+    - **Server JAR** — the filename of your server JAR inside that folder
+
+    Click the folder icon next to **Folder path** to use the system folder browser. When you select a folder, ServerPilot automatically runs `server:detect` on it — scanning for JAR files and setting **Server JAR** and **Server type** for you.
+  </Step>
+  <Step title="Review and adjust optional settings">
+    The remaining fields (Java path, RAM, JVM arguments, Playit settings) are pre-filled from your global defaults. Adjust any that need to differ for this particular server.
+  </Step>
+  <Step title="Save the server">
+    Click **Save Server**. The server appears in the sidebar immediately. The Save button is disabled until **Server name**, **Folder path**, and **Server JAR** are all filled in.
+  </Step>
+  <Step title="Start the server">
+    Click **Start** on the Dashboard. ServerPilot builds the full launch command from your settings and starts the Java process. You will see live output in the Console tab.
+  </Step>
+</Steps>
+
+## Field Reference
+
+### Basic Identity
+
+<ParamField path="name" type="string" default="New Server">
+  The display name for this server shown in the sidebar, Dashboard title, and desktop notifications. Choose something descriptive, like `My Paper Server` or `SMP World`. This field is required — the Save button will not activate without it.
+</ParamField>
+
+<ParamField path="serverType" type="string" default="Vanilla">
+  The server software type. Accepted values are `Paper`, `Fabric`, `Forge`, `Vanilla`, and `Unknown`. This field is **informational** — it does not change how the server is launched. It is set automatically when you browse to your folder via the folder picker (using `server:detect`), but you can also change it manually with the dropdown.
+</ParamField>
+
+### Paths
+
+<ParamField path="folderPath" type="string" required>
+  The full absolute path to your server folder on Windows, for example `D:\MineCraft\MyServer`. The folder must exist on disk — ServerPilot validates this before starting the server. Use the **Browse** button to select it with the system folder dialog, which also triggers auto-detection of the JAR and server type.
+</ParamField>
+
+<ParamField path="jarName" type="string" required>
+  The filename of the server JAR **inside** the folder, for example `paper.jar`. This must be the bare filename only — no path prefix. The file must exist at `folderPath\jarName`. ServerPilot populates this automatically when you use the folder browser, but you can type it manually if needed.
+</ParamField>
+
+<ParamField path="javaPath" type="string" default="java">
+  The Java executable to use when launching this server. Defaults to `java`, which works if Java is on your system `PATH`. To use a specific Java installation, set this to the full path of `java.exe`, for example:
+
+  ```
+  C:\Program Files\Eclipse Adoptium\jdk-21.0.x.x-hotspot\bin\java.exe
+  ```
+
+  Use the browse button to select `java.exe` from a file dialog. The per-server value here overrides the global **Default Java Path** in Settings.
+</ParamField>
+
+### Memory Allocation
+
+<Note>
+  The `ramMin` and `ramMax` fields map directly to the JVM `-Xms` (initial heap) and `-Xmx` (maximum heap) flags. Do **not** include `-Xms` or `-Xmx` in the **JVM arguments** field — ServerPilot adds them automatically from these two fields, and duplicates will be detected and stripped with a console warning.
+</Note>
+
+<ParamField path="ramMin" type="string" default="2G">
+  Minimum (initial) heap size passed as `-Xms`. Use standard JVM notation: `2G`, `512M`, `1024M`. Should be equal to or less than `ramMax`. Setting both to the same value (e.g., both `4G`) avoids heap resizing at runtime, which is common for production servers.
+</ParamField>
+
+<ParamField path="ramMax" type="string" default="4G">
+  Maximum heap size passed as `-Xmx`. The server process will never use more RAM than this value for the Java heap. Set this according to the available RAM on your host machine — for most home servers, `4G` to `8G` is appropriate.
+</ParamField>
+
+### JVM Arguments
+
+<ParamField path="jvmArgs" type="string" default='""'>
+  Extra JVM flags appended to the launch command between the RAM flags and `-jar`. Use this for performance tuning only. Example:
+
+  ```
+  -XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200
+  ```
+
+  **Do not include** any of the following — ServerPilot manages them automatically and will silently strip them out:
+  - `java` or `java.exe`
+  - `-jar` (and the JAR filename after it)
+  - `-Xms` / `-Xmx`
+  - `nogui`
+
+  If ServerPilot detects any of these in your JVM args, it will log a warning listing the ignored values.
+</ParamField>
+
+### Playit.gg Settings
+
+<ParamField path="playitPath" type="string" default='""'>
+  Per-server path to the `playit.exe` executable. Leave blank to use the global **Playit Executable Path** from Settings. Set this if you want a specific server to use a different Playit installation, or if you have not configured the global path but still want Playit on this server.
+</ParamField>
+
+<ParamField path="autoStartPlayit" type="boolean" default="true">
+  When `true`, ServerPilot spawns the Playit process when this server starts and terminates it when the server stops. The effective path used is `playitPath` (this server) falling back to the global `playitPath` (Settings). If neither is set, auto-start is skipped and a warning is logged to the console.
+</ParamField>
+
+## How Defaults Work
+
+When you open the Add Server modal, ServerPilot pre-fills several fields from your global Settings:
+
+| Field | Source |
+|---|---|
+| `javaPath` | Settings → **Default Java Path** |
+| `ramMin` | Settings → **Default Min RAM** |
+| `ramMax` | Settings → **Default Max RAM** |
+| `autoStartPlayit` | Settings → **Auto-start Playit** |
+| `playitPath` | Settings → **Playit Executable Path** |
+
+This means that once you configure these once in Settings, every new server you add will inherit those values — you only need to change them if a specific server needs different resources or a different Java version.
+
+## Editing an Existing Server
+
+To change a server's configuration after it has been added, click the **Edit** (pencil) icon next to the server name in the sidebar. The same Server Modal opens with the current values populated. Changes take effect the next time you start the server — editing settings while a server is running does not affect the live process.

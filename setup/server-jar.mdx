@@ -1,0 +1,139 @@
+---
+title: "Download and Prepare a Minecraft Server JAR"
+sidebarTitle: "Server JAR"
+description: "Download Paper, Fabric, Forge, or Vanilla server JARs and prepare your server folder for use with ServerPilot on Windows."
+---
+
+Before you can add a server to ServerPilot, you need a Minecraft server JAR file and a dedicated folder for it to live in. This page covers how to choose the right server software, download it, create your server folder, perform the first-run file generation, and accept the Minecraft End User License Agreement.
+
+## Supported Server Types
+
+ServerPilot works with any server software that runs with the standard `java -jar <file>.jar nogui` command. The four most common types are:
+
+| Type | Best for | Plugin support | Mod support |
+|---|---|---|---|
+| **Paper** | Most servers | ✅ Bukkit/Spigot/Paper plugins | ❌ |
+| **Fabric** | Modded servers | ❌ | ✅ Fabric mods |
+| **Forge** | Modded servers | ❌ | ✅ Forge mods |
+| **Vanilla** | Pure, unmodified experience | ❌ | ❌ |
+
+When you browse to your server folder in ServerPilot, the `server:detect` IPC handler automatically scans for JAR files and identifies the type (Paper, Fabric, Forge, or Vanilla) based on the filename. The detected type is shown in the Server Modal as **Server type** and on the Dashboard — no manual configuration needed.
+
+## Downloading Your Server JAR
+
+<Tabs>
+  <Tab title="Paper (Recommended)">
+    Paper is the recommended choice for most servers. It is fast, actively maintained, and supports the entire ecosystem of Bukkit, Spigot, and Paper plugins.
+
+    <Steps>
+      <Step title="Go to the Paper downloads page">
+        Visit [https://papermc.io/downloads/paper](https://papermc.io/downloads/paper).
+      </Step>
+      <Step title="Select your Minecraft version">
+        Choose the version you want to host from the version selector at the top of the page.
+      </Step>
+      <Step title="Download the latest build">
+        Click the download button for the most recent build number. The file will be named something like `paper-1.21.x-xxx.jar`.
+      </Step>
+    </Steps>
+  </Tab>
+  <Tab title="Fabric">
+    Fabric is a lightweight modding platform. Use it if you want to run Fabric mods (e.g., performance mods like Lithium and Starlight, or content mods).
+
+    <Steps>
+      <Step title="Go to the Fabric installer page">
+        Visit [https://fabricmc.net/use/server/](https://fabricmc.net/use/server/).
+      </Step>
+      <Step title="Download the server launcher">
+        Click **Download server jar** for your target Minecraft version. This downloads `fabric-server-launch.jar` along with a small `server.jar` that it depends on.
+      </Step>
+      <Step title="Note the launch JAR name">
+        The main launch file is `fabric-server-launch.jar`. Use this exact name in ServerPilot's **Server JAR** field, or rename it to `fabric.jar` for consistency.
+      </Step>
+    </Steps>
+  </Tab>
+  <Tab title="Vanilla">
+    The official Mojang server JAR. No plugins, no mods — just a pure Minecraft experience.
+
+    <Steps>
+      <Step title="Go to the Minecraft server downloads page">
+        Visit [https://www.minecraft.net/en-us/download/server](https://www.minecraft.net/en-us/download/server).
+      </Step>
+      <Step title="Download the server JAR">
+        Click the `minecraft_server.x.x.x.jar` link to download the official server file.
+      </Step>
+      <Step title="Rename the file">
+        Rename the downloaded file to something simple like `server.jar` or `vanilla.jar` to make it easier to reference in ServerPilot.
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+## Creating Your Server Folder
+
+Create a dedicated folder for each Minecraft server you want to run. Keep them separate — do not put two servers in the same folder.
+
+A clean, easy-to-find location works best. For example:
+
+```
+D:\MineCraft\MyServer\
+```
+
+Move (or save) your downloaded JAR into this folder, then rename it to something short and descriptive:
+
+| Server type | Recommended JAR name |
+|---|---|
+| Paper | `paper.jar` |
+| Fabric | `fabric.jar` |
+| Forge | `forge.jar` |
+| Vanilla | `server.jar` |
+
+Short names make the ServerPilot **Server JAR** field easier to fill in and reduce the chance of typos.
+
+## First Run: Generating Server Files
+
+Minecraft server software generates its configuration files (`server.properties`, `eula.txt`, world data, etc.) on the very first launch. You need to run the server once before ServerPilot can fully manage it.
+
+Open **Command Prompt**, navigate to your server folder, and run:
+
+```cmd
+cd D:\MineCraft\MyServer
+java -Xmx2G -Xms2G -jar paper.jar nogui
+```
+
+The server will start, generate its files, then stop automatically (because you haven't accepted the EULA yet). That is expected behavior.
+
+<Warning>
+  The Minecraft EULA **must** be accepted before the server will start. After the first run, open `eula.txt` in your server folder and change:
+
+  ```
+  eula=false
+  ```
+
+  to:
+
+  ```
+  eula=true
+  ```
+
+  Save the file. The server will refuse to start until this change is made — ServerPilot cannot bypass this requirement.
+</Warning>
+
+You can also accept the EULA using ServerPilot's built-in **File Manager** (Files tab → select `eula.txt` → edit in the Monaco editor) without ever leaving the app.
+
+## Expected Folder Layout
+
+After the first run and EULA acceptance, your server folder should look like this:
+
+```
+D:\MineCraft\MyServer\
+  paper.jar
+  eula.txt
+  server.properties
+  world/
+  logs/
+  plugins/      ← Paper/Spigot only
+  config/       ← Paper only
+```
+
+This folder is now ready to be added to ServerPilot. When you browse to it in the **Add Server** dialog, ServerPilot's auto-detection will find `paper.jar` and set the **Server type** to `Paper` automatically.

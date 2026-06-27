@@ -1,0 +1,156 @@
+---
+title: "Security Architecture of ServerPilot"
+sidebarTitle: "Security"
+description: "ServerPilot's security model: Electron sandboxing, restricted IPC bridge, filesystem path validation, protected Windows directories, and no-admin operation."
+---
+
+ServerPilot V2 was built from the ground up with process isolation and filesystem safety as first-class requirements. The app manages local Minecraft servers, which means it necessarily launches child processes and reads and writes files on behalf of the user. The security model described here ensures those capabilities are tightly scoped so a vulnerability in the React renderer or a third-party UI dependency cannot reach the host operating system.
+
+---
+
+## Electron Sandbox
+
+Every security property is set explicitly in `BrowserWindow.webPreferences` inside `electron/main.js`. None of the defaults are relied upon.
+
+| Setting | Value | Effect |
+|---|---|---|
+| `contextIsolation` | `true` | The renderer's JavaScript context and the main process context are completely isolated. There is no shared `window` or prototype chain between them. |
+| `nodeIntegration` | `false` | The renderer process has no access to Node.js built-ins (`fs`, `path`, `child_process`, etc.). |
+| `sandbox` | `true` | Full Electron sandbox is enabled. The renderer cannot spawn processes, read the filesystem, or make raw network requests outside of normal browser-level APIs. |
+| `webSecurity` | `true` | Standard browser same-origin policy is enforced. |
+| `allowRunningInsecureContent` | `false` | Mixed HTTP/HTTPS content is blocked. |
+| `webviewTag` | `false` | The `<webview>` element is disabled. A `<webview>` would create a second sandboxed context that is harder to audit. |
+
+New window creation is blocked globally:
+
+```js
+// electron/main.js
+contents.setWindowOpenHandler(() => {
+  return { action: 'deny' };
+});
+```
+
+Any call to `window.open()` or a link with `target="_blank"` inside the renderer returns nothing — the request is denied before Electron processes it.
+
+Additionally, `<webview>` attachment is prevented at the `web-contents-created` level:
+
+```js
+contents.on('will-attach-webview', (e) => {
+  e.preventDefault();
+});
+```
+
+---
+
+## Restricted IPC Bridge
+
+The only communication path between the renderer and the main process is the `window.serverPilot` object injected by `electron/preload.js` via `contextBridge.exposeInMainWorld`. The preload script runs in an isolated context with limited Node.js access — its sole purpose is to whitelist channels and expose them to the renderer.
+
+**Invoke channels** — only these 27 channels can be called via `window.serverPilot.invoke`:
+
+```text
+app:data:get        settings:update      dialog:select-folder  dialog:select-file
+server:detect       server:add           server:update         server:remove
+server:start        server:stop          server:restart        server:kill
+server:command      server:open-folder   server:open-terminal  metrics:get
+files:list          files:read           files:write           files:create
+files:delete        files:rename         properties:get        properties:save
+backups:create      backups:list         backups:restore
+```
+
+**Event channels** — only these 5 channels can be subscribed to via `window.serverPilot.on`:
+
+```text
+server:log   server:status   server:metrics   server:players   toast
+```
+
+Any attempt to invoke or subscribe to a channel not in these sets throws an error immediately in the renderer, before the call ever reaches `ipcRenderer`:
+
+```js
+// preload.js (simplified)
+invoke(channel, payload) {
+  if (!validChannels.has(channel)) throw new Error(`Blocked IPC channel: ${channel}`);
+  return ipcRenderer.invoke(channel, payload);
+}
+```
+
+This means the attack surface is a closed, enumerable list. There is no `eval`-style channel, no catch-all handler, and no way to call arbitrary main-process code from the renderer.
+
+---
+
+## Filesystem Restrictions
+
+All file operations — list, read, write, create, delete, rename — go through a `resolveInside(root, relativePath)` guard in `electron/ipc/fileManager.js` before any I/O is performed.
+
+**Path traversal prevention:** The guard uses `path.resolve` to convert the relative path to an absolute one, then checks that the result starts with the server folder path followed by the OS path separator. If the resolved path escapes the server folder for any reason (including `../` sequences, absolute overrides, or unusual Unicode normalization), the operation throws:
+
+```text
+Path escapes the server folder
+```
+
+**Protected Windows system directories:** Even if a path resolves inside what a server folder is configured as, these roots are always blocked:
+
+```text
+C:\Windows
+C:\Program Files
+C:\Program Files (x86)
+C:\Users\Default
+```
+
+The comparison is case-insensitive to account for Windows path casing inconsistencies. Any attempt to access these locations throws:
+
+```text
+Access to protected system directories is strictly prohibited.
+```
+
+**File size limits:** `files:read` rejects files larger than **4 MB** to prevent the renderer from allocating unbounded memory. `files:write` similarly rejects payloads that exceed 4 MB (measured via `Buffer.byteLength`) before writing anything to disk.
+
+**Backup restore path validation:** `backups:restore` checks that the supplied `backupPath` lives exactly inside `<serverFolder>/backups/`. A path pointing to an arbitrary ZIP file elsewhere on the filesystem is rejected:
+
+```js
+if (!backupPath || path.dirname(backupPath) !== path.join(server.folderPath, 'backups'))
+  throw new Error('Invalid backup path');
+```
+
+**Properties save allowlist:** `properties:save` will only write to `ops.json`, `whitelist.json`, and `banned-players.json` as JSON targets. Any other filename in the `json` object is silently ignored. `server.properties` is always written via `resolveInside`, so it cannot be redirected.
+
+---
+
+## Process Execution
+
+Minecraft servers and the Playit tunnel are launched via `child_process.spawn` — never `exec` or `execFile` with shell interpolation — which prevents shell injection.
+
+**`windowsHide: true`** is set on every `spawn` call so spawned processes do not open visible console windows, and the processes are owned by the Electron process tree.
+
+**Duplicate launch prevention:** A `runtime` Map tracks active server processes by server UUID. If a `server:start` call comes in while a process for that ID is already in the map and alive, the call throws immediately:
+
+```text
+Server is already running
+```
+
+**JVM argument sanitization:** Before building the Java command, `sanitizeJvmArgs` strips any of the following from the user-supplied JVM Arguments field:
+- The Java executable itself (`java` or `java.exe`)
+- `-jar` and the filename following it
+- `nogui` and `gui`
+- Any `.jar` filename
+- Duplicate `-Xms` and `-Xmx` flags
+
+ServerPilot adds these back itself with values from the server configuration, preventing a scenario where a misconfigured JVM Arguments field causes a process escape or memory misconfiguration. Stripped arguments are logged to the console as a `warn` line so the user is aware.
+
+**Force-kill path:** On Windows, `taskkill.exe /PID <pid> /T /F` is used rather than `SIGKILL` to ensure the entire child process tree (including grandchild processes) is terminated — not just the immediate JVM.
+
+---
+
+## No Admin Required
+
+The `electron-builder.json` manifest sets:
+
+```json
+"requestedExecutionLevel": "asInvoker"
+```
+
+This means ServerPilot never requests UAC elevation. It runs with the same privileges as the user who launched it. Standard user privileges are sufficient for all of ServerPilot's operations: spawning a Java process, reading/writing files in user-owned folders, and displaying desktop notifications.
+
+<Note>
+  If your server folder is located in a protected system path (e.g. inside `C:\Program Files`), ServerPilot will refuse to operate on it. Keep server folders in user-owned locations such as `C:\Users\<You>\Documents\MinecraftServers\` or a secondary drive.
+</Note>

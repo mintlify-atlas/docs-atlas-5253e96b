@@ -1,0 +1,117 @@
+---
+title: "Integrated Console for Live Minecraft Server Logs"
+sidebarTitle: "Console"
+description: "ServerPilot's built-in console streams live Minecraft server output with color-coded log levels and lets you send commands directly to the running server process."
+---
+
+The Console tab gives you a real-time window into everything your Minecraft server process is printing. Every line written to `stdout` or `stderr` by the Java process is captured in the Electron main process, cleaned up, and forwarded to the renderer via the `server:log` IPC event. You can also type any Minecraft server command directly in the input at the bottom and send it straight to the server process without opening a terminal.
+
+## How Log Streaming Works
+
+When ServerPilot starts a server it attaches line-buffered readers to both `stdout` and `stderr` of the spawned Java process. Each complete line is processed by `cleanLogMessage`, then emitted over IPC as a `server:log` event. The same pipeline handles logs from the Playit.gg agent process when it is running.
+
+The IPC event payload for every log line is:
+
+```json
+{
+  "serverId": "your-server-id",
+  "level": "info",
+  "source": "server",
+  "message": "Done (2.14s)! For help, type \"help\"",
+  "at": "2024-01-15T09:12:06.000Z"
+}
+```
+
+| Field | Description |
+|---|---|
+| `serverId` | Identifies which server emitted this log line |
+| `level` | `info`, `warn`, `error`, or `command` |
+| `source` | `server` (Minecraft stdout), `playit` (Playit.gg output), or implied from a command echo |
+| `message` | The cleaned log message text |
+| `at` | ISO 8601 timestamp of when the line was received |
+
+The last **30 log lines** are stored in `state.lastLogs` in the Electron main process so they can be replayed to the renderer when reconnecting or displayed in the crash panel on the Dashboard.
+
+## Log Levels and Colors
+
+Each log entry is rendered with a color that reflects its severity or origin:
+
+| Level | Color | When used |
+|---|---|---|
+| `info` | Zinc/grey (`text-zinc-300`) | Normal Minecraft stdout lines |
+| `warn` | Yellow (`text-warn`) | `stderr` lines that match a warning pattern |
+| `error` | Red (`text-danger`) | `stderr` lines, process errors, crash messages |
+| `command` | Neon green (`text-neon`) | Echo of a command you sent, prefixed with `>` |
+
+## Log Format
+
+Each rendered line in the console displays:
+
+```
+[HH:MM:SS] source message
+```
+
+The timestamp (`at` field) is formatted using `toLocaleTimeString()` and shown in a muted grey. The `source` field (`server` or `playit`) appears in a slightly lighter grey. The message text is rendered in the level-appropriate color.
+
+## Line Cleaning
+
+Before any log line is stored or emitted, `cleanLogMessage` applies three transformations:
+
+1. **Strip ANSI escape codes** — removes all VT100/ANSI color and cursor control sequences that Java or plugins may embed
+2. **Remove non-printable characters** — keeps only printable ASCII (`0x20`–`0x7E`) plus tab, newline, and carriage return
+3. **Trim trailing whitespace** — strips trailing spaces and newlines from each line
+
+This ensures the console displays clean, readable text regardless of how the Minecraft server or its plugins format their output.
+
+## Example Console Output
+
+```
+[09:12:04 server] Starting minecraft server version 1.21.4
+[09:12:06 server] Done (2.14s)! For help, type "help"
+[09:12:07 server] Steve joined the game
+[09:12:10 command] > say Welcome!
+[09:12:10 server] [Server] Welcome!
+```
+
+## Sending Commands
+
+The command input at the bottom of the console lets you send any Minecraft server command to the running process.
+
+<Steps>
+  <Step title="Type your command">
+    Enter a command in the input field — you do not need a leading `/`. Examples: `op Steve`, `say Hello everyone`, `list`, `stop`, `tp Steve Alex`.
+  </Step>
+  <Step title="Press Enter or click Send">
+    ServerPilot calls `server:command` IPC with `{ id, command }`. The Electron handler writes `command\n` to the server process's `stdin`.
+  </Step>
+  <Step title="See the echo">
+    The command is immediately echoed back to the console as a `command`-level log entry, prefixed with `>` in neon green, so you have a record of what you sent.
+  </Step>
+  <Step title="See the server response">
+    The server's response appears as one or more `info`-level log lines in the normal grey color, just as it would in a vanilla terminal.
+  </Step>
+</Steps>
+
+If the server is not running, the command input is disabled and the **Send** button cannot be clicked.
+
+## Playit.gg Log Filtering
+
+When Playit.gg is running alongside the server, its output is shown inline in the console with `source: "playit"`. Because the Playit agent produces a significant amount of noise (banner art, numeric counters, progress bars), ServerPilot applies a filter before forwarding any Playit line: only lines that contain at least one of the following keywords are shown:
+
+`playit`, `agent`, `tunnel`, `secret`, `claim`, `error`, `warn`, `connected`, `online`, `offline`, `failed`, `login`, `account`, `minecraft`, `address`, `region`, `proxy`
+
+Pure numeric lines, lines composed only of whitespace or decorative characters (`|`, `_`, `-`, `/`, `\`, `.`), and empty lines are always suppressed regardless of keywords.
+
+## Console Controls
+
+The console toolbar provides several additional controls:
+
+| Control | Behavior |
+|---|---|
+| **Search** | Filters visible log lines to those whose `message` contains the query string (case-insensitive). When a search query is active, up to 1,400 matching lines are shown. |
+| **Errors toggle** | Hides or shows all `error`-level lines. |
+| **Warnings toggle** | Hides or shows all `warn`-level lines. |
+| **Clear** | Marks the current log position; lines before the mark are hidden. Clears visually without discarding the underlying buffer. |
+| **Jump to Latest** | Appears when you scroll up away from the bottom. Click to snap back to the newest log line with a smooth scroll animation. |
+
+The console renders up to **900 lines** at a time when no search query is active. It auto-scrolls to the latest log entry whenever new lines arrive and the viewport is within 80 pixels of the bottom.

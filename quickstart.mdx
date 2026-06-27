@@ -1,47 +1,192 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: "Get Started with ServerPilot in 5 Steps"
+sidebarTitle: "Quickstart"
+description: "Launch your first Minecraft server with ServerPilot. Install Java, download Paper, configure your server folder, and start playing in under 10 minutes."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
+This guide walks you from a blank Windows machine to a running Minecraft server managed by ServerPilot. The whole process takes under 10 minutes if you have a decent internet connection. You'll install Java, download a Paper server JAR, initialise the server files, optionally set up Playit.gg for public access, and then register and start the server inside ServerPilot.
 
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
-
-## Prerequisites
-
-Before you begin, you must have:
-
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
-
-## Get started
+<Warning>
+  You **must** accept the Minecraft End User Licence Agreement before your server will start. Step 3 below covers exactly how to do this. Skipping it causes the server process to exit immediately with no obvious error message.
+</Warning>
 
 <Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
+  <Step title="Install Java 17 or newer">
+    Modern Minecraft servers require Java 17 at minimum. ServerPilot does not bundle Java, so you need to install it separately.
+
+    **Check whether Java is already installed** by opening Command Prompt (`Win + R` → type `cmd` → press Enter) and running:
 
     ```bash
-    npm install your-package
+    java -version
+    ```
+
+    A successful response looks like this:
+
+    ```text
+    openjdk version "21.0.5" 2024-10-15 LTS
+    OpenJDK Runtime Environment Temurin-21.0.5+11 (build 21.0.5+11-LTS)
+    OpenJDK 64-Bit Server VM Temurin-21.0.5+11 (build 21.0.5+11-LTS, mixed mode, sharing)
+    ```
+
+    Any version number **17 or higher** is compatible. If the command returns `'java' is not recognized` or shows a version older than 17, install a new Java runtime.
+
+    **Recommended distribution — Eclipse Temurin:**
+
+    1. Go to [https://adoptium.net/](https://adoptium.net/)
+    2. Download the **Temurin 21 (LTS)** Windows x64 installer (`.msi`)
+    3. Run the installer — the default options are fine
+    4. Open a new Command Prompt window and re-run `java -version` to confirm the install succeeded
+
+    Alternatively, Oracle Java is available at [https://www.oracle.com/java/technologies/downloads/](https://www.oracle.com/java/technologies/downloads/).
+
+    If Windows still cannot find `java` after installing, you can provide the full path to `java.exe` directly in ServerPilot. It is typically located at:
+
+    ```text
+    C:\Program Files\Eclipse Adoptium\jdk-21...\bin\java.exe
     ```
   </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
 
-    ```bash
-    your-cli init
+  <Step title="Download Paper and create your server folder">
+    Paper is the recommended server software for most users. It is fast, stable, compatible with the Bukkit/Spigot plugin ecosystem, and receives frequent performance patches.
+
+    1. Go to [https://papermc.io/downloads/paper](https://papermc.io/downloads/paper)
+    2. Select your target Minecraft version from the version list
+    3. Click the **Download** button next to the latest build number
+    4. Create a dedicated folder for your server. Keep the path simple and avoid spaces or special characters:
+
+    ```text
+    D:\MineCraft\Server
     ```
+
+    5. Move the downloaded JAR into that folder
+    6. Rename the JAR to `paper.jar` so it is easy to reference later
+
+    Your server folder should now look like this:
+
+    ```text
+    D:\MineCraft\Server\
+      paper.jar
+    ```
+
+    <Info>
+      You can name the folder and JAR file anything you like. The name `paper.jar` is just a convention used throughout this guide and in the default ServerPilot configuration. Whatever name you choose, use that same name when adding the server in Step 5.
+    </Info>
   </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
+
+  <Step title="First run to generate files and accept the EULA">
+    Before ServerPilot can manage the server, Minecraft needs to generate its initial configuration files — including the `eula.txt` that you must accept.
+
+    Open Command Prompt, navigate to your server folder, and run the server once manually:
 
     ```bash
-    your-cli start
+    cd D:\MineCraft\Server
+    java -Xmx2G -Xms2G -jar paper.jar nogui
     ```
+
+    The server will start, print some log lines, then stop automatically because the EULA has not been accepted. After it exits, your folder will contain several new files:
+
+    ```text
+    D:\MineCraft\Server\
+      paper.jar
+      eula.txt          ← open this file
+      server.properties
+      logs\
+    ```
+
+    Open `eula.txt` in any text editor (Notepad works fine) and change:
+
+    ```text
+    eula=false
+    ```
+
+    to:
+
+    ```text
+    eula=true
+    ```
+
+    Save the file. The EULA is now accepted and you do not need to repeat this step.
+
+    <Warning>
+      If you skip this step and start the server from ServerPilot before accepting the EULA, the server process will exit almost immediately. The integrated console will show the EULA warning in the log output.
+    </Warning>
+  </Step>
+
+  <Step title="(Optional) Set up Playit.gg for public access">
+    Playit.gg gives your server a permanent public address so friends can connect from anywhere — no port forwarding or static IP required. Skip this step if you only want to play on your local network.
+
+    1. Go to [https://playit.gg/download](https://playit.gg/download) and download the Windows version
+    2. Place the executable somewhere easy to locate, for example:
+
+    ```text
+    D:\MineCraft\playit_gg\bin\playit.exe
+    ```
+
+    3. Run `playit.exe` once. It will open a browser window and walk you through claiming your tunnel on the Playit.gg website
+    4. Follow the on-screen instructions to configure your tunnel (Minecraft TCP, port 25565)
+    5. Note the full path to `playit.exe` — you will enter it in ServerPilot in the next step
+
+    Once configured, ServerPilot can start and stop Playit automatically every time you start or stop your server, using the `autoStartPlayit` setting.
+  </Step>
+
+  <Step title="Add and start the server in ServerPilot">
+    With Java installed, your server folder prepared, and the EULA accepted, you are ready to add the server in ServerPilot.
+
+    1. Open ServerPilot (the Onboarding Wizard will appear on first launch, or click **Add Server** in the sidebar on subsequent launches)
+    2. Fill in the server configuration fields:
+
+    | Field | Value |
+    |-------|-------|
+    | **Server name** | Any descriptive name, e.g. `My Paper Server` |
+    | **Folder path** | Full path to your server folder, e.g. `D:\MineCraft\Server` |
+    | **Server JAR** | The JAR filename, e.g. `paper.jar` |
+    | **Java executable** | `java` if Java is on your PATH, or the full path to `java.exe` |
+    | **Min RAM** | `2G` (ServerPilot default) |
+    | **Max RAM** | `4G` (ServerPilot default) |
+    | **JVM arguments** | Optional — see tip below |
+    | **Playit executable** | Full path to `playit.exe` (optional) |
+
+    3. Click **Add Server** (or **Finish** in the Onboarding Wizard)
+    4. Select the server in the sidebar and click **Start**
+
+    The integrated console will begin streaming server log output. Once you see a line similar to `Done (Xs)! For help, type "help"` in the console, your server is live and accepting connections on `localhost:25565`.
+
+    <Tip>
+      Do **not** put a full Java launch command in the **JVM arguments** field. ServerPilot automatically constructs the complete command using the Java executable, `-Xms`, `-Xmx`, `-jar`, the JAR name, and `nogui`. The JVM arguments field is only for additional flags inserted between the RAM settings and the `-jar` flag, for example:
+
+      ```text
+      -XX:+UseG1GC
+      ```
+
+      Putting something like `java -jar paper.jar` in that field will cause the server to fail to start with a `Could not find or load main class java` error.
+    </Tip>
   </Step>
 </Steps>
 
-<Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
+## Example Server Configuration
 
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
-</Tip>
+Here is a complete example of the values you would enter when adding a Paper server:
+
+```text
+Server name: My Paper Server
+Folder:       D:\MineCraft\Server
+JAR:          paper.jar
+Java:         java
+Min RAM:      2G
+Max RAM:      4G
+JVM Args:     -XX:+UseG1GC
+Playit:       D:\MineCraft\playit_gg\bin\playit.exe  (optional)
+```
+
+These values match ServerPilot's built-in defaults (`defaultRamMin: '2G'`, `defaultRamMax: '4G'`, `defaultJavaPath: 'java'`) defined in `backend/defaults.js`, so you only need to change what differs from your own setup.
+
+## What Happens Next
+
+Once the server is running you can explore the rest of ServerPilot's features from the sidebar:
+
+- **Dashboard** — live CPU, RAM, TPS, uptime, and player count charts
+- **Console** — send commands like `op <username>`, `whitelist add <username>`, or `say Hello`
+- **Players** — activity feed showing joins, leaves, chat, and advancements
+- **Files** — browse and edit any server file with the Monaco Editor
+- **Properties** — visual editor for `server.properties`, `ops.json`, and `whitelist.json`
+- **Backups** — create and restore ZIP snapshots of your world

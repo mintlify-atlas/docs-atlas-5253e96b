@@ -1,0 +1,81 @@
+---
+title: "ServerPilot Dashboard: Live Server Monitoring"
+sidebarTitle: "Dashboard"
+description: "The ServerPilot Dashboard shows real-time CPU, RAM, TPS, uptime, player count, and Playit.gg status. Control server start, stop, restart, backup, and folder access."
+---
+
+The Dashboard is the first thing you see when you open ServerPilot. It gives you a live view of your Minecraft server's health — including CPU usage, RAM consumption, uptime, and online players — and puts every key control action within a single click. All metrics are polled every second via `metrics:get` and rendered in real time so you always have an accurate picture of what the server process is doing.
+
+## Server Header
+
+At the top of the Dashboard is the server header panel. This shows:
+
+- **StatusPill** — a color-coded badge reflecting the current lifecycle state of the server process: `OFFLINE`, `STARTING`, `ONLINE`, `STOPPING`, or `CRASHED`
+- **Playit.gg status badge** — displays `PLAYIT ONLINE` (green indicator dot) or `PLAYIT STOPPED` (grey indicator dot) depending on whether the Playit tunnel agent is running alongside the server
+- **Server name** — the display name you gave the server when you added it
+- **Server type and JAR** — shown as `{serverType} - {jarName}`, for example `Paper - paper.jar`
+
+## Control Buttons
+
+The header panel contains six action buttons. Each triggers an Electron IPC call when clicked.
+
+| Button | IPC Channel | Behavior |
+|---|---|---|
+| **Start** | `server:start` | Launches the Java server process. Disabled when the server is `STARTING`, `ONLINE`, or `STOPPING`. |
+| **Stop Server** | `server:stop` | Sends the `stop` command to the server's `stdin` for a graceful shutdown. |
+| **Restart** | `server:restart` | Waits for the process to exit after a graceful stop, then starts it again. |
+| **Folder** | `server:open-folder` | Opens the server folder in Windows Explorer via `shell.openPath`. |
+| **Terminal** | `server:open-terminal` | Spawns `cmd.exe` with `cd /d` pointing at the server folder. |
+| **Backup** | `backups:create` | Immediately creates a ZIP backup of the entire server folder. |
+
+<Note>
+  **Stop** sends `stop\n` to the server process's `stdin` and then sets a 15-second force-kill timer (`STOP_TIMEOUT_MS = 15000`). If the server process has not exited after 15 seconds, ServerPilot calls `taskkill.exe /PID <pid> /T /F` on Windows to terminate it. You will see a warning line in the console if this happens.
+</Note>
+
+## Live Metric Cards
+
+Six metric cards update every second, driven by the `metrics:get` IPC handler which uses `pidusage` to read the Java process statistics.
+
+<CardGroup cols={3}>
+  <Card title="CPU" icon="microchip">
+    The Java process CPU utilization as a percentage, e.g. `4.2%`. Calculated by `pidusage` and rounded to one decimal place.
+  </Card>
+  <Card title="RAM" icon="hard-drive">
+    The Java process resident memory in megabytes, e.g. `812 MB`. Calculated from `pidusage` by dividing bytes by `1024 * 1024`.
+  </Card>
+  <Card title="Uptime" icon="timer">
+    Wall-clock time since the server was started, formatted as `HH:MM:SS`. Shown as `00:00:00` when the server is `OFFLINE` or `STOPPED`.
+  </Card>
+  <Card title="Java PID" icon="terminal">
+    The operating system process ID of the running Java process. Useful for cross-referencing in Task Manager or `tasklist`. Shows `-` when the server is offline.
+  </Card>
+  <Card title="TPS" icon="bolt">
+    Server ticks per second. Currently reported as a fixed value of `20`. Future versions may derive this from server output.
+  </Card>
+  <Card title="Players" icon="users">
+    The number of players currently online. Sourced from the live player session state maintained by the log parser.
+  </Card>
+</CardGroup>
+
+## Live Performance Charts
+
+Below the metric cards are two area charts powered by Recharts. Each chart stores up to **40 data points**, with one point appended every second when `metrics:get` is polled. When the server is stopped the history is cleared for the next session.
+
+- **CPU Usage** — plots the `cpu` field from each polling snapshot over time. The chart area is filled with a green gradient (`#34f17b`).
+- **Memory Usage** — plots the `memory` field (in MB) over time. The chart area is filled with a blue gradient (`#00d4ff`).
+
+Both charts use `AreaChart` with `CartesianGrid`, `XAxis` (showing `time` as `HH:MM:SS`), `YAxis`, and a `Tooltip` styled to match the dark UI theme.
+
+## Crash Panel
+
+When the server status transitions to `CRASHED` — meaning the process exited unexpectedly with a non-zero exit code or a signal, and the stop was not intentional — the Dashboard shows a red crash panel. This panel displays:
+
+- The crash reason string, e.g. `Process exited unexpectedly with code 1.`
+- The last **6 lines** of server output buffered in `state.lastLogs` (which holds the most recent 30 lines)
+- A **Restart Server** button that calls `server:start` so you can recover without navigating away
+
+If the **Auto-restart on crash** option is enabled in Settings, the server will automatically restart 2.5 seconds after a crash without any manual intervention.
+
+## No-Server State
+
+If no servers have been added to ServerPilot yet, the Dashboard shows an empty state card with an **Add Server** button. Clicking it opens the server creation flow so you can configure your first local Minecraft server.

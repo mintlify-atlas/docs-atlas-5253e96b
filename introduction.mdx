@@ -1,0 +1,123 @@
+---
+title: "ServerPilot: One-Click Minecraft Server Management"
+sidebarTitle: "Introduction"
+description: "ServerPilot is a Windows desktop app for local Minecraft servers. Manage start/stop, monitor performance, track players, and share with friends via Playit.gg."
+---
+
+ServerPilot is a modern Windows desktop application built with Electron and React 18 that turns the chore of running a local Minecraft server into a one-click experience. Instead of juggling batch files, raw terminal windows, and manual router configuration, you get a polished control panel that handles everything — from launching the Java process to tunneling your server to the internet — all from a single interface.
+
+## The Problem ServerPilot Solves
+
+Running a Minecraft server the traditional way means writing start scripts, memorising JVM flags, tailing log files in a separate terminal, and explaining port-forwarding steps to every friend who wants to join. When something goes wrong, diagnosing it requires switching between several tools at once.
+
+ServerPilot replaces all of that with a unified dashboard. You add a server folder once, and from that point forward every operation — start, stop, backup, console, player activity, file editing — is a single click or keystroke inside the app. Playit.gg integration means friends can join through a public tunnel without you ever touching your router.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="One-Click Start / Stop" icon="power-off">
+    Launch your server and its Playit.gg tunnel simultaneously with a single button. Stop both cleanly with the same control.
+  </Card>
+  <Card title="Live Dashboard" icon="gauge-high">
+    Monitor CPU utilisation, RAM allocation, TPS, uptime, process ID, and connected player count updating in real time via Recharts graphs.
+  </Card>
+  <Card title="Integrated Console" icon="terminal">
+    A dark-themed terminal pipes all server log output directly into the app. Send any command — `op username`, `say hello`, `stop` — without opening a separate window.
+  </Card>
+  <Card title="Playit.gg Auto-Tunneling" icon="network-wired">
+    Built-in Playit.gg integration starts and stops the tunnel automatically alongside your server. Friends get a public address with zero port-forwarding configuration.
+  </Card>
+  <Card title="Player Tracking" icon="users">
+    See who is online, when they joined, and a full activity feed of chat messages, commands, deaths, advancements, and login attempts — all parsed from live server logs.
+  </Card>
+  <Card title="File Manager with Monaco Editor" icon="folder-open">
+    Browse your entire server directory and edit any text file using the same editor engine that powers VS Code, without leaving the app.
+  </Card>
+  <Card title="server.properties Visual Editor" icon="sliders">
+    Edit `server.properties`, `ops.json`, `whitelist.json`, and `banned-players.json` through a structured visual interface instead of raw text.
+  </Card>
+  <Card title="ZIP Backup & Restore" icon="box-archive">
+    Zip up your entire server world with one click. Restore any previous backup just as easily. Backups are stored in a `backups/` subfolder inside each server directory.
+  </Card>
+  <Card title="Multi-Server Management" icon="server">
+    Add as many server folders as you like and switch between them inside the same window. Each server maintains its own settings, console history, and backup list.
+  </Card>
+  <Card title="Onboarding Wizard" icon="wand-magic-sparkles">
+    First-launch wizard walks new users through adding their first server folder step by step, so no documentation is required to get started.
+  </Card>
+</CardGroup>
+
+## Supported Server Types
+
+ServerPilot works with any server JAR you already have. The following server types are explicitly recognised:
+
+| Server Type | Notes |
+|-------------|-------|
+| **Paper**   | Recommended — fast, plugin-compatible, widely supported |
+| **Fabric**  | Mod-loader server; works with any Fabric version |
+| **Forge**   | Mod-loader server; works with any Forge version |
+| **Vanilla** | Official Mojang server JAR, no mods or plugins |
+
+Because ServerPilot launches the server by calling `java -jar <yourjar>.jar`, it is compatible with any JAR-based server that follows the standard Minecraft server startup convention.
+
+## System Requirements
+
+- **OS:** Windows 10 or Windows 11 (64-bit)
+- **Java:** Java 17 or newer — required by the server itself, not bundled with ServerPilot
+- **Server folder:** A directory containing at least one server JAR file (e.g. `paper.jar`)
+- **Optional:** [Playit.gg](https://playit.gg/download) executable if you want automatic public tunneling
+
+Java is **not** bundled with ServerPilot. See the [Quickstart](/quickstart) guide for recommended Java distributions.
+
+## Tech Stack
+
+ServerPilot V2 was rebuilt from the ground up. The full technology stack is:
+
+| Layer | Technology |
+|-------|-----------|
+| Desktop shell | Electron 42 |
+| UI framework | React 18 + Vite 6 |
+| Styling | Tailwind CSS 3 |
+| Persistent storage | Electron-Store 8 (local JSON) |
+| Performance charts | Recharts 2 |
+| Process monitoring | Pidusage 3 |
+| Code editor | Monaco Editor 0.53 (`@monaco-editor/react`) |
+| Backup compression | Archiver 7 + Extract-Zip 2 |
+| Icons | Lucide React |
+
+## Security Model
+
+<Note>
+  ServerPilot V2 was designed with renderer isolation as a first-class requirement, not an afterthought. The architecture prevents renderer-side code from accessing the Node.js environment or the filesystem directly.
+</Note>
+
+The `BrowserWindow` is created with the following hardened options in `electron/main.js`:
+
+```js
+webPreferences: {
+  preload: path.join(__dirname, 'preload.js'),
+  contextIsolation: true,
+  nodeIntegration: false,
+  sandbox: true,
+  webSecurity: true,
+  allowRunningInsecureContent: false,
+  webviewTag: false
+}
+```
+
+All communication between the React UI and the Electron main process flows through a single restricted IPC bridge defined in `electron/preload.js`. The bridge exposes a `window.serverPilot` object with two methods — `invoke` and `on` — that only accept channels from a hard-coded allowlist. Any attempt to call an unlisted channel throws an error immediately:
+
+```js
+if (!validChannels.has(channel)) throw new Error(`Blocked IPC channel: ${channel}`);
+```
+
+Additional safeguards include:
+
+- **Restricted filesystem access:** The File Manager validates server paths before performing any operation and blocks navigation to Windows system directories.
+- **No `webview` tag:** The `webviewTag: false` option prevents any embedded webview from being created.
+- **Popup blocking:** A `setWindowOpenHandler` returning `{ action: 'deny' }` prevents the app from spawning new browser windows.
+- **Runs as `asInvoker`:** The installer requests no elevated privileges, so ServerPilot never runs as Administrator.
+
+## Next Step
+
+Ready to install? Head to the [Installation](/installation) page to download the Windows installer or portable EXE and get ServerPilot running in under a minute.

@@ -1,0 +1,104 @@
+---
+title: "Configure Playit.gg for Public Minecraft Multiplayer"
+sidebarTitle: "Playit.gg"
+description: "Set up Playit.gg with ServerPilot to let friends join your local Minecraft server without port forwarding or a static IP address."
+---
+
+By default, a Minecraft server running on your PC is only reachable by players on the same local network. Getting friends outside your home to connect normally requires opening a port in your router and knowing your public IP address — a process that varies by router model and internet provider. Playit.gg solves this by acting as a secure tunnel: it gives your local server a permanent public address that anyone on the internet can connect to, without any router changes at all.
+
+<Note>
+  Playit.gg auto-start is entirely optional. If all of your players are on the same LAN (for example, at a LAN party or on a home network), you do not need Playit at all — players can connect using your local IP address directly.
+</Note>
+
+## What Is Playit.gg?
+
+Playit.gg is a free tunneling service. You run a small `playit.exe` agent on the same machine as your Minecraft server. The agent connects outbound to Playit's infrastructure and establishes a tunnel. Playit then provides you with a stable Minecraft address (like `xxxxx.mc.playit.gg`) that routes traffic through the tunnel to your local server. No port forwarding, no static IP, no firewall rules needed.
+
+## Downloading and Installing Playit
+
+<Steps>
+  <Step title="Go to the Playit download page">
+    Visit [https://playit.gg/download](https://playit.gg/download) and select the **Windows** version.
+  </Step>
+  <Step title="Extract to a convenient location">
+    Save or extract the executable somewhere easy to remember. A dedicated folder works well:
+
+    ```
+    D:\MineCraft\playit_gg\bin\playit.exe
+    ```
+
+    You will need to enter this path into ServerPilot, so avoid paths with unusual characters or spaces.
+  </Step>
+  <Step title="Run Playit once to claim your tunnel">
+    Double-click `playit.exe` to run it for the first time. It will open a browser window (or display a URL in its console) pointing to the Playit website. Follow the on-screen steps to:
+
+    - Create a free Playit account (or log in)
+    - Claim your agent
+    - Configure a tunnel for Minecraft (TCP, port 25565)
+    - Note the Minecraft address shown on your tunnel dashboard
+
+    This one-time setup permanently links the `playit.exe` binary to your account and creates your tunnel address.
+  </Step>
+</Steps>
+
+<Tip>
+  Always complete the Playit account setup and tunnel claim manually at least once **before** enabling auto-start in ServerPilot. The first-run flow requires browser interaction that cannot happen when Playit is launched silently in the background by ServerPilot.
+</Tip>
+
+## Setting the Playit Path in ServerPilot
+
+ServerPilot needs to know where your `playit.exe` lives. You can configure this at two levels:
+
+**Global default (applies to all servers)**
+
+Open **Settings** (gear icon in the sidebar) and set **Playit Executable Path** to the full path of your `playit.exe`, for example:
+
+```
+D:\MineCraft\playit_gg\bin\playit.exe
+```
+
+**Per-server override**
+
+In the **Add Server** or **Edit Server** modal, set the **Playit executable** field. This path is used instead of the global setting for that specific server. Leave it blank to fall back to the global path.
+
+## Enabling Auto-Start
+
+Auto-start causes ServerPilot to launch Playit automatically when your Minecraft server starts and terminate it when your server stops — so you never have to manage Playit manually.
+
+You can enable it in two places:
+
+- **Global** — Settings → enable **Auto-start Playit** (sets `autoStartPlayit: true` as the default for new servers)
+- **Per-server** — Server Modal → check **Auto-start Playit with this server** (sets `autoStartPlayit: true` on that server)
+
+When auto-start is on and a valid Playit path is configured, ServerPilot:
+
+1. Spawns the `playit.exe` process in the background (hidden window) when `server:start` is called
+2. Streams Playit's stdout and stderr, filtering for meaningful lines containing keywords like `connected`, `tunnel`, `address`, `online`, `error`, or `failed`
+3. Forwards those filtered lines to the ServerPilot console with source label `playit`
+4. Sends a `SIGKILL`/`taskkill` to the Playit process when the server stops (with a 3-second grace period)
+
+## Playit Status Indicators
+
+The ServerPilot Dashboard displays the current Playit state alongside your server status. The lifecycle is:
+
+| Status | Meaning |
+|---|---|
+| `PLAYIT STOPPED` | Playit is not running (initial state, or after server stops) |
+| `PLAYIT STARTING` | ServerPilot has spawned the Playit process and is waiting |
+| `PLAYIT ONLINE` | Playit process is running and the tunnel should be active |
+| `PLAYIT STOPPING` | ServerPilot has sent the kill signal and is waiting for exit |
+| `PLAYIT STOPPED` | Playit has exited cleanly |
+
+## Troubleshooting
+
+**Playit won't stop when the server stops.**
+This can happen if Playit was started outside of ServerPilot (e.g., from a separate terminal window). ServerPilot can only stop a Playit process it spawned itself. Make sure you are not running a separate instance, and always use the latest ServerPilot build which includes improved process tracking.
+
+**Auto-start is enabled but Playit never launches.**
+Check that the Playit executable path is set correctly in Settings or the server's configuration, and that the file actually exists at that path. ServerPilot logs a warning to the console if the path is missing or invalid:
+```
+Playit auto-start is enabled, but no valid Playit executable path is configured.
+```
+
+**The tunnel address isn't working.**
+Confirm you completed the one-time tunnel claim flow on the Playit website. An unclaimed agent has no tunnel address. Visit [https://playit.gg](https://playit.gg) and check your dashboard.
