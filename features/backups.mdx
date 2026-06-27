@@ -1,7 +1,7 @@
 ---
-title: "Create and Restore Minecraft World Backups"
+title: "ServerPilot Backups: Create and Restore Server Snapshots"
 sidebarTitle: "Backups"
-description: "ServerPilot backs up your entire Minecraft server world to a ZIP archive with one click and lets you restore any previous backup instantly."
+description: "Back up your entire Minecraft server folder to a ZIP archive with one click and restore any previous snapshot instantly from the Backups tab."
 ---
 
 The Backups tab lets you create a complete snapshot of your Minecraft server folder with a single click. ServerPilot compresses the entire server directory — including your world, plugins, and configuration files — into a ZIP archive stored inside the server folder itself. You can browse your backup history and restore any previous snapshot just as easily.
@@ -59,9 +59,9 @@ If no backups exist yet, the list shows *"No backups yet."*
 
 ## Restoring a Backup
 
-Clicking **Restore** next to any backup entry prompts for confirmation (*"Restore {name}? This overwrites matching server files."*). If confirmed, the `backups:restore` IPC handler:
+Clicking **Restore** next to any backup entry prompts for confirmation (*"Restore \{name\}? This overwrites matching server files."*). If confirmed, the `backups:restore` IPC handler:
 
-1. Validates that the `backupPath` is inside the server's `backups/` subfirectory using a strict `path.dirname` check — no other paths can be extracted
+1. Validates that the `backupPath` is inside the server's `backups/` subdirectory using a strict `path.dirname` check — no other paths can be extracted
 2. Calls `extract-zip` to unzip the archive back into the server folder root, overwriting any files that exist with the same relative paths
 3. Fires a desktop notification: *"Backup restored — \{server name\} was restored from \{filename\}."*
 

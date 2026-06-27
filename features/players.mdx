@@ -1,7 +1,7 @@
 ---
-title: "Player Tracking and Activity Feed in ServerPilot"
+title: "ServerPilot Players: Live Session and Activity Tracking"
 sidebarTitle: "Players"
-description: "ServerPilot tracks players by parsing live Minecraft server logs. View online status, session time, chat, deaths, advancements, commands, and kicks in real time."
+description: "Track online players, session time, chat, deaths, advancements, and kicks by parsing live Minecraft server logs — no plugins required."
 ---
 
 The Players tab gives you a live picture of everyone who has joined your server. ServerPilot does not require any plugins — it works entirely by parsing the Minecraft server's own log output. Every time a player joins, leaves, chats, dies, earns an advancement, or runs a command, `parseMinecraftLog()` identifies the event type and sends an updated snapshot to the UI via the `server:players` IPC event.
@@ -155,6 +155,19 @@ The `server:players` IPC event is emitted after every player state change. Its p
   Once resolved, the UUID is stored on the player object and shown in the Player Profile panel. Until this line appears, the UUID is displayed as `Pending`.
 </Accordion>
 
+<Accordion title="movement — Invalid movement warning">
+  **Example log lines:**
+  ```
+  [09:13:00 INFO]: Steve moved too quickly!
+  [09:13:00 INFO]: Steve moved wrongly!
+  ```
+  **Parsed result:**
+  ```json
+  { "type": "movement", "username": "Steve", "message": "Steve moved too quickly!", "text": "Steve moved too quickly!" }
+  ```
+  Movement warnings (anti-cheat speed violations flagged by Vanilla/Paper) are recorded as activity events and update the player's `lastActivityText`. They do not change the player's online status. In the Live Activity feed, movement events render with a clock icon since no dedicated icon is assigned.
+</Accordion>
+
 ## Player Cards
 
 The main area of the Players tab shows a card for every player that has appeared in the server logs since the server was started. Each card displays:
@@ -203,7 +216,7 @@ The toolbar also shows a live "Updated X seconds ago" indicator derived from the
 
 ## Activity Feed
 
-The right sidebar shows a **Live Activity** panel with the most recent **250 events** across all players, newest first. Each event entry shows:
+The right sidebar shows a **Live Activity** panel with the most recent **150 events** across all players, newest first. (The full activity buffer holds up to 250 entries server-side; the `server:players` payload delivers the latest 150, reversed so the newest event appears at the top.) Each event entry shows:
 
 - An icon representing the event type (e.g. `UserCheck` for join, `MessageSquare` for chat, `ShieldAlert` for death or kick, `Sparkles` for advancement)
 - The event text, e.g. `Steve made advancement: Stone Age`

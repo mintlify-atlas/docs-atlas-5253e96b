@@ -1,7 +1,7 @@
 ---
-title: "Global App Settings in ServerPilot"
+title: "ServerPilot Global Settings Configuration Reference"
 sidebarTitle: "Settings"
-description: "Configure ServerPilot's global defaults: Java path, RAM allocation, Playit.gg executable, auto-start, auto-restart, and UI theme."
+description: "Configure ServerPilot's global defaults: Java path, RAM allocation, Playit.gg executable, auto-start, auto-restart, and UI theme settings."
 ---
 
 ServerPilot's **Settings** page controls application-wide defaults that apply to every server you manage. These values are used as fallbacks whenever a server does not have its own override configured. You can reach the Settings page from the left-hand navigation at any time — changes take effect immediately after saving.
@@ -22,7 +22,7 @@ The file is written automatically every time you save; you do not need to restar
 
 ## Saving settings
 
-Settings are sent to the main process over the `settings:update` IPC channel, which accepts a **partial** settings object and deep-merges it with the current saved state. Only the fields you include in the payload are updated — all other fields retain their existing values.
+Settings are sent to the main process over the `settings:update` IPC channel, which accepts a **partial** settings object and shallow-merges it with the current saved state. Only the fields you include in the payload are updated — all other fields retain their existing values.
 
 ```text
 IPC channel: settings:update

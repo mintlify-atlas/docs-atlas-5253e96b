@@ -177,7 +177,7 @@ Launches the Minecraft server process for the given server. Builds the Java comm
 
 ### `server:stop`
 
-Sends the `stop` command to the server's stdin and starts a 15-second force-kill timer. If the process does not exit within 15 seconds, it is terminated via `taskkill.exe /T /F`.
+Sends the `stop` command to the server's stdin and starts a 15-second force-kill timer. If the process does not exit within 15 seconds, it is terminated via `taskkill.exe /PID <pid> /T /F`.
 
 <ParamField body="id" type="string" required>
   The UUID of the server to stop.

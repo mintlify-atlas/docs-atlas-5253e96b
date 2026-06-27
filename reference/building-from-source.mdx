@@ -1,7 +1,7 @@
 ---
-title: "Build ServerPilot from Source on Windows"
+title: "Build ServerPilot from Source — Windows Install Guide"
 sidebarTitle: "Building from Source"
-description: "Clone the ServerPilot repository, install dependencies, run the development app, and compile Windows installer and portable EXE builds using Electron Builder."
+description: "Clone ServerPilot, install dependencies, run the development app, and compile Windows installer and portable EXE builds using Electron Builder."
 ---
 
 ServerPilot is a standard Electron + React application with a Vite build pipeline. The entire source is available on GitHub and can be compiled to distributable Windows executables in a few commands. This page walks through the prerequisites, the development workflow, and producing release builds.
@@ -142,7 +142,7 @@ ServerPilot/
     icon.ico            # App icon (used by Electron and the installer)
   storage/              # Default JSON store template files
   electron-builder.json # Packaging configuration
-  vite.config.js        # Vite configuration (React plugin, output to dist-renderer/)
+  vite.config.cjs       # Vite configuration (React plugin, output to dist-renderer/)
   postcss.config.cjs    # PostCSS configuration for Tailwind
   package.json          # Scripts, dependencies, and Electron entry point
 ```

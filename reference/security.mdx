@@ -1,7 +1,7 @@
 ---
-title: "Security Architecture of ServerPilot"
+title: "ServerPilot Security Model: Sandbox and IPC Design"
 sidebarTitle: "Security"
-description: "ServerPilot's security model: Electron sandboxing, restricted IPC bridge, filesystem path validation, protected Windows directories, and no-admin operation."
+description: "ServerPilot's security model: Electron sandbox, restricted IPC bridge, filesystem path validation, protected Windows directories, and no-admin operation."
 ---
 
 ServerPilot V2 was built from the ground up with process isolation and filesystem safety as first-class requirements. The app manages local Minecraft servers, which means it necessarily launches child processes and reads and writes files on behalf of the user. The security model described here ensures those capabilities are tightly scoped so a vulnerability in the React renderer or a third-party UI dependency cannot reach the host operating system.
@@ -14,6 +14,7 @@ Every security property is set explicitly in `BrowserWindow.webPreferences` insi
 
 | Setting | Value | Effect |
 |---|---|---|
+| `preload` | path to `preload.js` | Injects the IPC bridge script into the renderer before any page code runs, in an isolated context. |
 | `contextIsolation` | `true` | The renderer's JavaScript context and the main process context are completely isolated. There is no shared `window` or prototype chain between them. |
 | `nodeIntegration` | `false` | The renderer process has no access to Node.js built-ins (`fs`, `path`, `child_process`, etc.). |
 | `sandbox` | `true` | Full Electron sandbox is enabled. The renderer cannot spawn processes, read the filesystem, or make raw network requests outside of normal browser-level APIs. |

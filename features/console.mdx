@@ -1,7 +1,7 @@
 ---
-title: "Integrated Console for Live Minecraft Server Logs"
+title: "ServerPilot Console: Live Minecraft Server Log Viewer"
 sidebarTitle: "Console"
-description: "ServerPilot's built-in console streams live Minecraft server output with color-coded log levels and lets you send commands directly to the running server process."
+description: "Stream live Minecraft server output with color-coded log levels and send commands directly to the running Java process from ServerPilot's built-in console."
 ---
 
 The Console tab gives you a real-time window into everything your Minecraft server process is printing. Every line written to `stdout` or `stderr` by the Java process is captured in the Electron main process, cleaned up, and forwarded to the renderer via the `server:log` IPC event. You can also type any Minecraft server command directly in the input at the bottom and send it straight to the server process without opening a terminal.

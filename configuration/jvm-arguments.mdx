@@ -1,7 +1,7 @@
 ---
 title: "JVM Arguments for Minecraft Servers in ServerPilot"
 sidebarTitle: "JVM Arguments"
-description: "Configure extra JVM flags for your Minecraft server in ServerPilot. Covers recommended GC flags, what ServerPilot strips automatically, and safe argument patterns."
+description: "Configure extra JVM flags for your Minecraft server in ServerPilot: GC tuning, sanitized arguments, and safe argument patterns explained."
 ---
 
 The **JVM Arguments** field (`jvmArgs`) lets you pass extra flags to the Java Virtual Machine when ServerPilot launches your Minecraft server. These flags sit between the Java executable and the `-jar` option in the final command, giving you full control over garbage collection tuning, system properties, and other low-level JVM behaviour — without touching RAM allocation or JAR management, which ServerPilot handles separately.
@@ -38,7 +38,7 @@ ServerPilot splits `jvmArgs` on whitespace. Quoted strings with internal spaces 
 
 ## Automatic sanitization
 
-Before inserting your `jvmArgs` into the command, ServerPilot scans each token and silently **removes** any argument that conflicts with fields it already manages. A warning message listing all removed arguments is printed to the server console so you always know what was stripped.
+Before inserting your `jvmArgs` into the command, ServerPilot scans each token and **removes** any argument that conflicts with fields it already manages. A warning message listing all removed arguments is printed to the server console so you always know what was stripped.
 
 The following are removed automatically:
 

@@ -1,7 +1,7 @@
 ---
-title: "Add and Configure a Server in ServerPilot"
+title: "Add and Configure a Minecraft Server in ServerPilot"
 sidebarTitle: "Adding a Server"
-description: "Add your Minecraft server folder to ServerPilot and configure name, JAR, Java path, RAM, JVM arguments, and Playit.gg settings."
+description: "Add your Minecraft server folder to ServerPilot and configure the server name, JAR file, Java path, RAM allocation, and Playit.gg options."
 ---
 
 Once you have Java installed and a prepared server folder with an accepted EULA, adding your server to ServerPilot takes less than a minute. The Server Modal walks you through every option, and most fields are pre-filled from your global Settings defaults — so you only need to fill in the folder path and JAR name for subsequent servers.
@@ -80,7 +80,7 @@ Once you have Java installed and a prepared server folder with an accepted EULA,
 
 ### JVM Arguments
 
-<ParamField path="jvmArgs" type="string" default='""'>
+<ParamField path="jvmArgs" type="string" default="">
   Extra JVM flags appended to the launch command between the RAM flags and `-jar`. Use this for performance tuning only. Example:
 
   ```
@@ -98,12 +98,12 @@ Once you have Java installed and a prepared server folder with an accepted EULA,
 
 ### Playit.gg Settings
 
-<ParamField path="playitPath" type="string" default='""'>
+<ParamField path="playitPath" type="string" default="">
   Per-server path to the `playit.exe` executable. Leave blank to use the global **Playit Executable Path** from Settings. Set this if you want a specific server to use a different Playit installation, or if you have not configured the global path but still want Playit on this server.
 </ParamField>
 
 <ParamField path="autoStartPlayit" type="boolean" default="true">
-  When `true`, ServerPilot spawns the Playit process when this server starts and terminates it when the server stops. The effective path used is `playitPath` (this server) falling back to the global `playitPath` (Settings). If neither is set, auto-start is skipped and a warning is logged to the console.
+  Controls whether this server participates in Playit auto-start. ServerPilot skips launching Playit only when **both** this per-server value **and** the global **Auto-start Playit** setting in Settings are `false`. If either is `true`, Playit will be started alongside the server. The effective executable path is `playitPath` (this server) falling back to the global `playitPath` (Settings). If neither resolves to a valid file, auto-start is skipped and a warning is logged to the console.
 </ParamField>
 
 ## How Defaults Work

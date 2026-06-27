@@ -1,7 +1,7 @@
 ---
-title: "Download and Prepare a Minecraft Server JAR"
+title: "Download and Set Up Your Minecraft Server JAR File"
 sidebarTitle: "Server JAR"
-description: "Download Paper, Fabric, Forge, or Vanilla server JARs and prepare your server folder for use with ServerPilot on Windows."
+description: "Download Paper, Fabric, Forge, or Vanilla server JARs and prepare your Minecraft server folder for use with ServerPilot on Windows."
 ---
 
 Before you can add a server to ServerPilot, you need a Minecraft server JAR file and a dedicated folder for it to live in. This page covers how to choose the right server software, download it, create your server folder, perform the first-run file generation, and accept the Minecraft End User License Agreement.
@@ -17,7 +17,7 @@ ServerPilot works with any server software that runs with the standard `java -ja
 | **Forge** | Modded servers | ❌ | ✅ Forge mods |
 | **Vanilla** | Pure, unmodified experience | ❌ | ❌ |
 
-When you browse to your server folder in ServerPilot, the `server:detect` IPC handler automatically scans for JAR files and identifies the type (Paper, Fabric, Forge, or Vanilla) based on the filename. The detected type is shown in the Server Modal as **Server type** and on the Dashboard — no manual configuration needed.
+When you browse to your server folder in ServerPilot, the `server:detect` IPC handler automatically scans for JAR files and identifies the server type based on the filename — `Paper`, `Fabric`, `Forge`, or `Vanilla` (any unrecognised JAR). If no JAR file is found in the folder at all, the type is set to `Unknown`. The detected type is shown in the Server Modal as **Server type** and on the Dashboard — no manual configuration needed.
 
 ## Downloading Your Server JAR
 

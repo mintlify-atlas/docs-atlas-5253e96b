@@ -1,5 +1,5 @@
 ---
-title: "ServerPilot Troubleshooting Guide"
+title: "Troubleshooting Common ServerPilot Issues and Errors"
 sidebarTitle: "Troubleshooting"
 description: "Fix common issues with ServerPilot: Java not found, server crashes, player count not updating, Playit.gg not stopping, and file manager errors."
 ---
@@ -126,7 +126,7 @@ If the server is using a heavily modified logging format, a custom logger plugin
 3. Enable **Auto-start Playit** in the server configuration.
 4. Start the server through ServerPilot — it will launch Playit automatically and track the process ID.
 
-When the server stops (or is force-killed), ServerPilot sends a `kill()` signal to the Playit process it owns, with a 3-second fallback to `taskkill.exe /T /F` if it doesn't exit cleanly.
+When the server stops (or is force-killed), ServerPilot sends a `kill()` signal to the Playit process it owns, with a 3-second fallback to `taskkill.exe /PID <pid> /T /F` if it doesn't exit cleanly.
 
 <Warning>
   Make sure you are using the latest ServerPilot build for the most reliable Playit lifecycle management.

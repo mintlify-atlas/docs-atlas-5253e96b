@@ -1,7 +1,7 @@
 ---
-title: "ServerPilot Dashboard: Live Server Monitoring"
+title: "ServerPilot Dashboard: Monitor Your Minecraft Server"
 sidebarTitle: "Dashboard"
-description: "The ServerPilot Dashboard shows real-time CPU, RAM, TPS, uptime, player count, and Playit.gg status. Control server start, stop, restart, backup, and folder access."
+description: "Monitor CPU, RAM, TPS, uptime, and players in real time. Start, stop, restart, and back up your Minecraft server from a single Dashboard view."
 ---
 
 The Dashboard is the first thing you see when you open ServerPilot. It gives you a live view of your Minecraft server's health — including CPU usage, RAM consumption, uptime, and online players — and puts every key control action within a single click. All metrics are polled every second via `metrics:get` and rendered in real time so you always have an accurate picture of what the server process is doing.
@@ -13,7 +13,7 @@ At the top of the Dashboard is the server header panel. This shows:
 - **StatusPill** — a color-coded badge reflecting the current lifecycle state of the server process: `OFFLINE`, `STARTING`, `ONLINE`, `STOPPING`, or `CRASHED`
 - **Playit.gg status badge** — displays `PLAYIT ONLINE` (green indicator dot) or `PLAYIT STOPPED` (grey indicator dot) depending on whether the Playit tunnel agent is running alongside the server
 - **Server name** — the display name you gave the server when you added it
-- **Server type and JAR** — shown as `{serverType} - {jarName}`, for example `Paper - paper.jar`
+- **Server type and JAR** — shown as `serverType - jarName`, for example `Paper - paper.jar`
 
 ## Control Buttons
 
@@ -44,7 +44,7 @@ Six metric cards update every second, driven by the `metrics:get` IPC handler wh
     The Java process resident memory in megabytes, e.g. `812 MB`. Calculated from `pidusage` by dividing bytes by `1024 * 1024`.
   </Card>
   <Card title="Uptime" icon="timer">
-    Wall-clock time since the server was started, formatted as `HH:MM:SS`. Shown as `00:00:00` when the server is `OFFLINE` or `STOPPED`.
+    Wall-clock time since the server was started, formatted as `HH:MM:SS`. Shown as `00:00:00` when the server is not in an `ONLINE` or `STARTING` state.
   </Card>
   <Card title="Java PID" icon="terminal">
     The operating system process ID of the running Java process. Useful for cross-referencing in Task Manager or `tasklist`. Shows `-` when the server is offline.
